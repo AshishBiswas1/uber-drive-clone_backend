@@ -1,24 +1,33 @@
 {
-  "name": "uber-drive-clone_backend",
-  "version": "1.0.0",
-  "description": "Backend for the Uber Drive Clone Application.",
-  "main": "server.js",
-  "scripts": {
-    "test": "nodemon server.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/AshishBiswas1/uber-drive-clone_backend.git"
-  },
-  "keywords": [
-    "Uber",
-    "Driver",
-    "Car_Services"
-  ],
-  "author": "Ashish Biswas",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/AshishBiswas1/uber-drive-clone_backend/issues"
-  },
-  "homepage": "https://github.com/AshishBiswas1/uber-drive-clone_backend#readme"
+    "name": "uber-drive-clone_backend",
+    "version": "1.0.0",
+    "description": "Backend for the Uber Drive Clone Application.",
+    "main": "server.js",
+    "scripts": {
+        "start:dev": "nodemon server.js",
+        "start": "node server.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/AshishBiswas1/uber-drive-clone_backend.git"
+    },
+    "keywords": [
+        "Uber",
+        "Driver",
+        "Car_Services"
+    ],
+    "author": "Ashish Biswas",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/AshishBiswas1/uber-drive-clone_backend/issues"
+    },
+    "homepage": "https://github.com/AshishBiswas1/uber-drive-clone_backend#readme",
+    "dependencies": {
+        "dotenv": "^17.2.2",
+        "express": "^4.18.2",
+        "helmet": "^8.1.0",
+        "mongoose": "^8.18.0",
+        "multer": "^2.0.2",
+        "validator": "^13.15.15"
+    }
 }
