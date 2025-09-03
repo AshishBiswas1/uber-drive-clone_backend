@@ -1,0 +1,24 @@
+{
+  "name": "uber-drive-clone_backend",
+  "version": "1.0.0",
+  "description": "Backend for the Uber Drive Clone Application.",
+  "main": "server.js",
+  "scripts": {
+    "test": "nodemon server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AshishBiswas1/uber-drive-clone_backend.git"
+  },
+  "keywords": [
+    "Uber",
+    "Driver",
+    "Car_Services"
+  ],
+  "author": "Ashish Biswas",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AshishBiswas1/uber-drive-clone_backend/issues"
+  },
+  "homepage": "https://github.com/AshishBiswas1/uber-drive-clone_backend#readme"
+}
