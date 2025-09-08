@@ -3,6 +3,8 @@ const riderController = require('./../Controller/riderController');
 
 const router = express.Router();
 
+router.route('/getDriver').get(riderController.getNearbyDrivers);
+
 router
   .route('/')
   .get(riderController.getAllRiders)

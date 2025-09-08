@@ -1,5 +1,6 @@
 const express = require('express');
 const helmet = require('helmet');
+const morgan = require('morgan');
 const AppError = require('./util/appError');
 const globalErrorHandler = require('./Controller/errorController');
 
@@ -9,6 +10,10 @@ const driverRouter = require('./Router/driverRouter');
 const riderRouter = require('./Router/riderRouter');
 
 const app = express();
+
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev'));
+}
 
 app.use(helmet());
 

@@ -1,6 +1,8 @@
 const Rider = require('./../Model/riderModel');
 const catchAsync = require('./../util/catchAsync');
 const AppError = require('./../util/appError');
+const { formatDriversWithDistance } = require('./../util/DriverFinding');
+const Driver = require('./../Model/driverModel');
 
 exports.getAllRiders = catchAsync(async (req, res, next) => {
   const riders = await Rider.find();
@@ -68,5 +70,55 @@ exports.deleteRider = catchAsync(async (req, res, next) => {
   res.status(204).json({
     status: 'success',
     data: null,
+  });
+});
+
+exports.getNearbyDrivers = catchAsync(async (req, res, next) => {
+  const { lat, lng } = req.query;
+
+  if (!lng || !lat) {
+    return next(
+      new AppError('Please provide both lng and lat query parameters', 400)
+    );
+  }
+
+  const longitude = parseFloat(lng);
+  const latitude = parseFloat(lat);
+
+  const maxDistance = 5000;
+
+  const drivers = await Driver.find({
+    status: 'online',
+    approvalStatus: 'approved',
+    isActive: true,
+    currentLocation: {
+      $nearSphere: {
+        $geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude],
+        },
+        $maxDistance: maxDistance,
+      },
+    },
+  })
+    .select(
+      'name photo phoneNo licenceNo vehicle status currentLocation totalTrips acceptanceRate'
+    )
+    .lean();
+
+  const driversWithDistance = formatDriversWithDistance(drivers, [
+    longitude,
+    latitude,
+  ]);
+
+  // Sort by distance (closest first)
+  driversWithDistance.sort((a, b) => a.distanceKm - b.distanceKm);
+
+  res.status(200).json({
+    status: 'success',
+    results: driversWithDistance.length,
+    data: {
+      drivers: driversWithDistance,
+    },
   });
 });
