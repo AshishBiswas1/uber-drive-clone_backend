@@ -231,26 +231,3 @@ exports.calculateFareEstimate = catchAsync(async (req, res, next) => {
     return next(new AppError(error.message, 400));
   }
 });
-
-exports.assignDriver = catchAsync(async (req, res, next) => {
-  const { driverId } = req.body;
-
-  const trip = await Trip.findByIdAndUpdate(
-    req.params.id,
-    {
-      driverId,
-      status: 'driver_assigned',
-      driverAssignedAt: new Date(),
-    },
-    { new: true }
-  ).populate('driverId riderId', 'name phone');
-
-  // Send notifications to rider and driver
-  // sendNotification(trip.riderId, 'Driver assigned');
-  // sendNotification(driverId, 'New trip assigned');
-
-  res.status(200).json({
-    status: 'success',
-    data: { trip },
-  });
-});

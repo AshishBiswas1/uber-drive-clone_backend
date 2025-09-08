@@ -14,8 +14,6 @@ router.route('/analytics').get(tripController.getTripAnalytics);
 
 router.route('/fare-estimate').post(tripController.calculateFareEstimate);
 
-router.route('/assign-driver/:id').post(tripController.assignDriver);
-
 router
   .route('/')
   .get(tripController.getAllTrips)
