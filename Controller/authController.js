@@ -95,25 +95,6 @@ exports.login = (Model) =>
           )
         );
       }
-
-      // Check approval status
-      if (user.approvalStatus !== 'approved') {
-        const statusMessages = {
-          pending:
-            'Your driver account is pending approval. Please wait for admin approval.',
-          rejected:
-            'Your driver account has been rejected. Please contact support.',
-          suspended:
-            'Your driver account has been suspended. Please contact support.',
-        };
-
-        return next(
-          new AppError(
-            statusMessages[user.approvalStatus] || 'Account not approved',
-            401
-          )
-        );
-      }
     }
 
     // 4) If everything ok, send token to client

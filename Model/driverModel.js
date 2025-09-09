@@ -150,14 +150,6 @@ const driverSchema = new mongoose.Schema({
     phone: String,
     relationship: String,
   },
-
-  // Approval Status
-  approvalStatus: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected', 'suspended'],
-    default: 'pending',
-  },
-
   // Timestamps
   createdAt: {
     type: Date,
