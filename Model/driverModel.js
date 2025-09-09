@@ -67,6 +67,7 @@ const driverSchema = new mongoose.Schema({
     required: [true, 'Please provide your license number'],
     unique: true,
     trim: true,
+    select: false,
   },
   verified: {
     type: Boolean,
@@ -81,7 +82,6 @@ const driverSchema = new mongoose.Schema({
   // Additional Driver Fields
   dateOfBirth: {
     type: Date,
-    required: [true, 'Please provide your date of birth'],
   },
   address: {
     street: String,
@@ -95,16 +95,14 @@ const driverSchema = new mongoose.Schema({
   vehicle: {
     make: {
       type: String,
-      required: [true, 'Please provide vehicle make'],
     },
     model: {
       type: String,
-      required: [true, 'Please provide vehicle model'],
     },
     licensePlate: {
       type: String,
-      required: [true, 'Please provide license plate'],
       unique: true,
+      sparse: true, // Allow null values without unique constraint conflict
     },
   },
 
@@ -114,15 +112,30 @@ const driverSchema = new mongoose.Schema({
     enum: ['offline', 'online', 'busy', 'break'],
     default: 'offline',
   },
+  // ✅ FIXED: Proper GeoJSON schema - completely optional
   currentLocation: {
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point',
+      // No default value
     },
     coordinates: {
-      type: [Number], // [longitude, latitude] - removed index to avoid duplicates
+      type: [Number],
+      // No default value
+      validate: {
+        validator: function (v) {
+          return (
+            !v ||
+            (Array.isArray(v) &&
+              v.length === 2 &&
+              v.every((coord) => typeof coord === 'number' && !isNaN(coord)))
+          );
+        },
+        message:
+          'Coordinates must be an array of exactly 2 valid numbers [longitude, latitude]',
+      },
     },
+    // ❌ REMOVED: Don't use required: false and index: false here
   },
 
   // Performance Metrics (Simplified)
@@ -154,12 +167,46 @@ const driverSchema = new mongoose.Schema({
   lastActiveAt: Date,
 });
 
-// INDEXES - Only non-duplicate indexes
-driverSchema.index({ currentLocation: '2dsphere' });
+// INDEXES - Create partial index to only index documents with valid currentLocation
+driverSchema.index(
+  { currentLocation: '2dsphere' },
+  {
+    partialFilterExpression: {
+      'currentLocation.coordinates': { $exists: true, $ne: null },
+    },
+  }
+);
 driverSchema.index({ status: 1 });
 driverSchema.index({ approvalStatus: 1 });
 
 // MIDDLEWARE
+
+// Clean up incomplete currentLocation before saving
+driverSchema.pre('save', function (next) {
+  // Remove incomplete currentLocation objects
+  if (
+    this.currentLocation &&
+    (!this.currentLocation.type ||
+      !this.currentLocation.coordinates ||
+      !Array.isArray(this.currentLocation.coordinates) ||
+      this.currentLocation.coordinates.length !== 2)
+  ) {
+    this.currentLocation = undefined;
+  }
+  next();
+});
+
+// Hash license number before saving
+driverSchema.pre('save', async function (next) {
+  if (!this.isModified('licenceNo')) return next();
+
+  try {
+    this.licenceNo = await bcrypt.hash(this.licenceNo, 12);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Hash password before saving
 driverSchema.pre('save', async function (next) {
@@ -194,6 +241,14 @@ driverSchema.methods.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword);
 };
 
+// Check if license number is correct (for verification purposes)
+driverSchema.methods.correctLicenceNo = async function (
+  candidateLicenceNo,
+  userLicenceNo
+) {
+  return await bcrypt.compare(candidateLicenceNo, userLicenceNo);
+};
+
 // Check if password was changed after JWT was issued
 driverSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   if (this.passwordChangedAt) {
@@ -218,6 +273,23 @@ driverSchema.methods.createPasswordResetToken = function () {
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
   return resetToken;
+};
+
+// Method to safely set driver location
+driverSchema.methods.setCurrentLocation = function (longitude, latitude) {
+  if (
+    typeof longitude === 'number' &&
+    typeof latitude === 'number' &&
+    !isNaN(longitude) &&
+    !isNaN(latitude)
+  ) {
+    this.currentLocation = {
+      type: 'Point',
+      coordinates: [longitude, latitude],
+    };
+    return true;
+  }
+  return false;
 };
 
 // QUERY MIDDLEWARE

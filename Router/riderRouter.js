@@ -1,9 +1,13 @@
 const express = require('express');
 const riderController = require('./../Controller/riderController');
+const authController = require('./../Controller/authController');
+const Rider = require('./../Model/riderModel');
 
 const router = express.Router();
 
 router.route('/getDriver').get(riderController.getNearbyDrivers);
+
+router.route('/signup').post(authController.signup(Rider));
 
 router
   .route('/')
