@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const locationHandler = require('./locationHandler');
 const catchAsync = require('./../util/catchAsync');
 const AppError = require('./../util/appError');
+const Email = require('./../util/email');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -63,6 +64,17 @@ exports.signup = (Model) =>
     }
 
     const newUser = await Model.create(filterBody);
+
+    try {
+      const dummyURL = 'http://localhost:3000/welcome';
+
+      await new Email(newUser, dummyURL).sendWelcome();
+
+      console.log(`✅ Welcome email sent to ${newUser.email}`);
+    } catch (emailError) {
+      console.error('❌ Failed to send welcome email:', emailError);
+    }
+
     createSendToken(newUser, 201, res, Model.modelName);
   });
 
