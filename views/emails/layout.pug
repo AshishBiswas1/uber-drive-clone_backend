@@ -1,0 +1,95 @@
+doctype html
+html
+  head
+    meta(charset='UTF-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1.0')
+    title= subject
+    style.
+      body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f8f9fa;
+        margin: 0;
+        padding: 20px;
+        line-height: 1.6;
+        color: #333;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+      .header {
+        background: linear-gradient(135deg, #000000, #333333);
+        color: white;
+        text-align: center;
+        padding: 30px;
+      }
+      .logo {
+        font-size: 32px;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+      .tagline {
+        font-size: 16px;
+        opacity: 0.9;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #000000, #333333);
+        color: white !important;
+        text-decoration: none;
+        padding: 15px 30px;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 16px;
+        margin: 20px 0;
+        transition: all 0.3s ease;
+      }
+      .button:hover {
+        background: linear-gradient(135deg, #333333, #555555);
+        transform: translateY(-2px);
+      }
+      .footer {
+        background-color: #f8f9fa;
+        text-align: center;
+        padding: 20px;
+        font-size: 14px;
+        color: #666;
+        border-top: 1px solid #e9ecef;
+      }
+      .social-links {
+        margin: 15px 0;
+      }
+      .social-links a {
+        color: #007bff;
+        text-decoration: none;
+        margin: 0 10px;
+      }
+      h1 { color: #333; font-size: 28px; margin-bottom: 20px; }
+      p { margin-bottom: 16px; font-size: 16px; }
+
+  body
+    .email-container
+      .header
+        .logo 🚗 Uber Clone
+        .tagline Your ride, your way
+      
+      .content
+        block content
+      
+      .footer
+        p Thank you for choosing Uber Clone!
+        .social-links
+          a(href='#') Facebook
+          a(href='#') Twitter
+          a(href='#') Instagram
+        p © 2025 Uber Clone. All rights reserved.
+        p 
+          small If you no longer wish to receive these emails, 
+          a(href='#' style='color: #007bff;') unsubscribe here
