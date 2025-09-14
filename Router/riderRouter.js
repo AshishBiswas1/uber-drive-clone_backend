@@ -6,14 +6,21 @@ const Rider = require('./../Model/riderModel');
 const router = express.Router();
 
 // For login and signup
-router.route('/getDriver').get(riderController.getNearbyDrivers);
 router.route('/signup').post(authController.signup(Rider));
+router.route('/login').post(authController.login(Rider));
 
 // For password Reset
 router.route('/forgetPassword').post(authController.forgetPassword(Rider));
 router
   .route('/resetPassword/:token')
   .patch(authController.resetPassword(Rider));
+
+router.use(authController.protect);
+router
+  .route('/getDriver')
+  .get(authController.restrictTo('rider'), riderController.getNearbyDrivers);
+
+router.use(authController.restrictTo('admin'));
 
 router
   .route('/')

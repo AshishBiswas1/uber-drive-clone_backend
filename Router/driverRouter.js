@@ -15,6 +15,8 @@ router
   .route('/resetPassword/:token')
   .patch(authController.resetPassword(Driver));
 
+router.use(authController.protect, authController.restrictTo('admin'));
+
 router
   .route('/')
   .get(driverController.getAllDrivers)

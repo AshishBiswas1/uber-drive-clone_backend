@@ -48,7 +48,7 @@ const riderSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['rider'],
+    enum: ['rider', 'admin'],
     default: 'rider',
   },
 
