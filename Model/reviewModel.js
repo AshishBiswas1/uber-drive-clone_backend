@@ -1,5 +1,6 @@
 // Model/reviewModel.js
 const mongoose = require('mongoose');
+const AppError = require('../util/appError'); // Assuming you have AppError for consistency
 
 const reviewSchema = new mongoose.Schema(
   {
@@ -7,34 +8,34 @@ const reviewSchema = new mongoose.Schema(
     trip: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Trip',
-      required: [true, 'Please provide tripId'],
+      required: [true, 'A review must belong to a trip.'],
     },
 
     // Rider (Who is giving the review)
     rider: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Rider',
-      required: [true, 'Please provide riderId'],
+      required: [true, 'A review must have a rider.'],
     },
 
     // Driver (Who is being reviewed)
     driver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Driver',
-      required: [true, 'Please provide driverId'],
+      required: [true, 'A review must be for a driver.'],
     },
 
     // Rating with enhanced validation
     rating: {
       type: Number,
-      required: [true, 'Please provide rating'],
-      min: [1, 'Rating must be between 1 and 5'],
-      max: [5, 'Rating must be between 1 and 5'],
+      required: [true, 'A rating is required.'],
+      min: [1, 'Rating must be at least 1.'],
+      max: [5, 'Rating cannot be more than 5.'],
       validate: {
         validator: function (value) {
           return Number.isInteger(value) || (value * 2) % 1 === 0;
         },
-        message: 'Rating must be a whole number or half number (e.g., 4.5)',
+        message: 'Rating must be a whole or half number (e.g., 4.5).',
       },
     },
 
@@ -48,7 +49,7 @@ const reviewSchema = new mongoose.Schema(
     comment: {
       type: String,
       trim: true,
-      maxlength: [500, 'Review comment cannot exceed 500 characters'],
+      maxlength: [500, 'Comment cannot exceed 500 characters.'],
       default: '',
     },
 
@@ -85,7 +86,11 @@ const reviewSchema = new mongoose.Schema(
       default: 'active',
     },
 
-    helpfulVotes: { type: Number, default: 0, min: 0 },
+    helpfulVotes: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
     helpfulBy: [
       {
@@ -95,7 +100,8 @@ const reviewSchema = new mongoose.Schema(
         },
         userType: {
           type: String,
-          enum: ['Rider', 'Driver'],
+          // ✅ FIX: Added 'Admin' to allow admins to mark as helpful
+          enum: ['Rider', 'Driver', 'Admin', 'admin'],
         },
       },
     ],
@@ -104,7 +110,7 @@ const reviewSchema = new mongoose.Schema(
       comment: {
         type: String,
         trim: true,
-        maxlength: [300, 'Response cannot exceed 300 characters'],
+        maxlength: [300, 'Response cannot exceed 300 characters.'],
       },
       respondedAt: Date,
     },
@@ -117,7 +123,10 @@ const reviewSchema = new mongoose.Schema(
       },
     ],
 
-    isReported: { type: Boolean, default: false },
+    isReported: {
+      type: Boolean,
+      default: false,
+    },
 
     reportedBy: [
       {
@@ -125,17 +134,17 @@ const reviewSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           refPath: 'reportedBy.userType',
         },
-        userType: { type: String, enum: ['Rider', 'Driver'] },
+        userType: {
+          type: String,
+          // ✅ FIX: Added 'Admin' to allow admins to report
+          enum: ['Rider', 'Driver', 'Admin', 'admin'],
+        },
         reason: {
           type: String,
-          enum: ['spam', 'inappropriate', 'fake', 'harassment', 'other'],
         },
         reportedAt: { type: Date, default: Date.now },
       },
     ],
-
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
   },
   {
     timestamps: true,
@@ -144,7 +153,9 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
+// ===========================================
 // INDEXES
+// ===========================================
 reviewSchema.index({ trip: 1 }, { unique: true });
 reviewSchema.index({ driver: 1 });
 reviewSchema.index({ rider: 1 });
@@ -153,9 +164,8 @@ reviewSchema.index({ createdAt: -1 });
 reviewSchema.index({ status: 1 });
 
 // ===========================================
-// QUERY MIDDLEWARE - AUTO POPULATION
+// QUERY MIDDLEWARE
 // ===========================================
-
 reviewSchema.pre(/^find/, function (next) {
   if (this.options._recursed) {
     return next();
@@ -164,18 +174,15 @@ reviewSchema.pre(/^find/, function (next) {
   this.populate({
     path: 'rider',
     select: 'name email phoneNo photo',
-    options: { _recursed: true },
   })
     .populate({
       path: 'driver',
       select: 'name email phoneNo photo rating totalRides',
-      options: { _recursed: true },
     })
     .populate({
       path: 'trip',
       select:
         'pickupLocation.address dropoffLocation.address createdAt fare.totalFare distance status',
-      options: { _recursed: true },
     });
 
   next();
@@ -189,27 +196,23 @@ reviewSchema.pre('findOne', function (next) {
   this.populate({
     path: 'rider',
     select: 'name email phoneNo photo totalRides',
-    options: { _recursed: true },
   })
     .populate({
       path: 'driver',
       select: 'name email phoneNo photo rating totalRides vehicleType',
-      options: { _recursed: true },
     })
     .populate({
       path: 'trip',
       select:
         'pickupLocation dropoffLocation createdAt fare distance duration status',
-      options: { _recursed: true },
     });
 
   next();
 });
 
 // ===========================================
-// VIRTUAL FIELDS & OTHER METHODS
+// VIRTUALS
 // ===========================================
-
 reviewSchema.virtual('riderName').get(function () {
   return this.rider?.name || 'Anonymous';
 });
@@ -227,7 +230,9 @@ reviewSchema.virtual('averageCategoryRating').get(function () {
     : this.rating;
 });
 
+// ===========================================
 // MIDDLEWARE
+// ===========================================
 reviewSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
@@ -235,23 +240,25 @@ reviewSchema.pre('save', function (next) {
 
 reviewSchema.pre('save', function (next) {
   if (this.rider.toString() === this.driver.toString()) {
-    return next(new Error('Rider cannot review themselves as driver'));
+    return next(new AppError('A user cannot review themselves.', 400));
   }
   next();
 });
 
+// ===========================================
 // STATIC METHODS
-reviewSchema.statics.getDriverAverageRating = async function (driver) {
+// ===========================================
+reviewSchema.statics.getDriverAverageRating = async function (driverId) {
   const stats = await this.aggregate([
     {
       $match: {
-        driver: new mongoose.Types.ObjectId(driver),
+        driver: new mongoose.Types.ObjectId(driverId),
         status: 'active',
       },
     },
     {
       $group: {
-        _id: null,
+        _id: '$driver',
         avgRating: { $avg: '$rating' },
         totalReviews: { $sum: 1 },
         ratingDistribution: { $push: '$rating' },
@@ -259,46 +266,33 @@ reviewSchema.statics.getDriverAverageRating = async function (driver) {
     },
   ]);
 
-  return stats.length > 0
-    ? {
-        averageRating: Math.round(stats[0].avgRating * 10) / 10,
-        totalReviews: stats[0].totalReviews,
-        ratingDistribution: stats[0].ratingDistribution,
-      }
-    : {
-        averageRating: 0,
-        totalReviews: 0,
-        ratingDistribution: [],
-      };
+  if (stats.length > 0) {
+    return {
+      averageRating: Math.round(stats[0].avgRating * 10) / 10,
+      totalReviews: stats[0].totalReviews,
+      ratingDistribution: stats[0].ratingDistribution,
+    };
+  }
+  return { averageRating: 0, totalReviews: 0, ratingDistribution: [] };
 };
 
 reviewSchema.statics.findWithoutPopulate = function (query = {}) {
   return this.find(query, null, { _recursed: true });
 };
 
+// ===========================================
 // INSTANCE METHODS
+// ===========================================
 reviewSchema.methods.markHelpful = function (userId, userType) {
-  const existingVote = this.helpfulBy.find(
-    (vote) => vote.userId.toString() === userId && vote.userType === userType
-  );
-
-  if (!existingVote) {
-    this.helpfulBy.push({ userId, userType });
-    this.helpfulVotes += 1;
-  }
-
+  this.helpfulBy.push({ userId, userType });
+  this.helpfulVotes += 1;
   return this.save();
 };
 
 reviewSchema.methods.reportReview = function (userId, userType, reason) {
-  this.reportedBy.push({
-    userId,
-    userType,
-    reason,
-    reportedAt: new Date(),
-  });
-
+  this.reportedBy.push({ userId, userType, reason, reportedAt: new Date() });
   this.isReported = true;
+  this.status = 'reported';
   return this.save();
 };
 

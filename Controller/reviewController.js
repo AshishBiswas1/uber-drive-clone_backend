@@ -32,7 +32,6 @@ exports.getAllReviews = catchAsync(async (req, res, next) => {
 // GET SINGLE REVIEW (Admin)
 exports.getReview = catchAsync(async (req, res, next) => {
   const { id } = req.params;
-
   const review = await Review.findById(id);
 
   if (!review) {
@@ -60,13 +59,11 @@ exports.createReview = catchAsync(async (req, res, next) => {
     status = 'active',
   } = req.body;
 
-  // Check existing review
   const existingReview = await Review.findWithoutPopulate({ trip });
   if (existingReview.length > 0) {
     return next(new AppError('Review already exists for this trip', 400));
   }
 
-  // Create review - validation handled by model
   const newReview = await Review.create({
     trip,
     rider,
@@ -83,7 +80,6 @@ exports.createReview = catchAsync(async (req, res, next) => {
     status,
   });
 
-  // Update driver rating
   await updateDriverRating(driver);
 
   res.status(201).json({
@@ -100,7 +96,6 @@ exports.updateReview = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   const updateData = { ...req.body };
 
-  // Remove fields that shouldn't be updated
   delete updateData._id;
   delete updateData.createdAt;
   delete updateData.__v;
@@ -115,7 +110,6 @@ exports.updateReview = catchAsync(async (req, res, next) => {
     return next(new AppError('No review found with that ID', 404));
   }
 
-  // Update driver rating if rating was changed
   if (updateData.rating) {
     await updateDriverRating(review.driver._id);
   }
@@ -132,14 +126,13 @@ exports.updateReview = catchAsync(async (req, res, next) => {
 // DELETE REVIEW (Admin)
 exports.deleteReview = catchAsync(async (req, res, next) => {
   const { id } = req.params;
-
   const review = await Review.findById(id);
 
   if (!review) {
     return next(new AppError('No review found with that ID', 404));
   }
 
-  const driverId = review.driverId;
+  const driverId = review.driver._id;
   await Review.findByIdAndDelete(id);
   await updateDriverRating(driverId);
 
@@ -154,7 +147,6 @@ exports.deleteReview = catchAsync(async (req, res, next) => {
 // ADDITIONAL ADMIN UTILITY FUNCTIONS
 // ===========================================
 
-// UPDATE REVIEW STATUS (Admin)
 exports.updateReviewStatus = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -185,7 +177,6 @@ exports.updateReviewStatus = catchAsync(async (req, res, next) => {
   });
 });
 
-// GET REVIEWS STATISTICS (Admin)
 exports.getReviewsStats = catchAsync(async (req, res, next) => {
   const stats = await Review.aggregate([
     {
@@ -209,12 +200,7 @@ exports.getReviewsStats = catchAsync(async (req, res, next) => {
 
   const ratingDistribution = await Review.aggregate([
     { $match: { status: 'active' } },
-    {
-      $group: {
-        _id: '$rating',
-        count: { $sum: 1 },
-      },
-    },
+    { $group: { _id: '$rating', count: { $sum: 1 } } },
     { $sort: { _id: 1 } },
   ]);
 
@@ -226,10 +212,7 @@ exports.getReviewsStats = catchAsync(async (req, res, next) => {
     },
     {
       $group: {
-        _id: {
-          year: { $year: '$createdAt' },
-          month: { $month: '$createdAt' },
-        },
+        _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
         count: { $sum: 1 },
         avgRating: { $avg: '$rating' },
       },
@@ -240,14 +223,7 @@ exports.getReviewsStats = catchAsync(async (req, res, next) => {
   res.status(200).json({
     status: 'success',
     data: {
-      overallStats: stats[0] || {
-        totalReviews: 0,
-        activeReviews: 0,
-        hiddenReviews: 0,
-        reportedReviews: 0,
-        averageRating: 0,
-        totalHelpfulVotes: 0,
-      },
+      overallStats: stats[0] || {},
       ratingDistribution,
       monthlyTrends,
     },
@@ -258,26 +234,21 @@ exports.getReviewsStats = catchAsync(async (req, res, next) => {
 // PUBLIC/USER FUNCTIONS
 // ===========================================
 
-// GET DRIVER REVIEWS (Public/Driver)
 exports.getDriverReviews = catchAsync(async (req, res, next) => {
-  const { driverId } = req.params;
+  const driverId = req.params.driverId;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const reviews = await Review.find({
-    driverId,
-    status: 'active',
-  })
+  const reviews = await Review.find({ driver: driverId, status: 'active' })
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
   const totalReviews = await Review.countDocuments({
-    driverId,
+    driver: driverId,
     status: 'active',
   });
-
   const ratingStats = await Review.getDriverAverageRating(driverId);
 
   res.status(200).json({
@@ -293,23 +264,19 @@ exports.getDriverReviews = catchAsync(async (req, res, next) => {
   });
 });
 
-// GET RIDER REVIEWS (Reviews written by a specific rider)
 exports.getRiderReviews = catchAsync(async (req, res, next) => {
-  const riderId = req.user.id; // Get from authenticated user
+  const riderId = req.user.id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const reviews = await Review.find({
-    riderId,
-    status: 'active',
-  })
+  const reviews = await Review.find({ rider: riderId, status: 'active' })
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
   const totalReviews = await Review.countDocuments({
-    riderId,
+    rider: riderId,
     status: 'active',
   });
 
@@ -325,23 +292,20 @@ exports.getRiderReviews = catchAsync(async (req, res, next) => {
   });
 });
 
-// CREATE REVIEW BY RIDER (After trip completion)
 exports.createRiderReview = catchAsync(async (req, res, next) => {
-  const riderId = req.user.id; // From protect middleware
-  const { tripId } = req.params;
-  const { rating, comment, tags, categoryRatings, media } = req.body;
+  const rider = req.user.id;
+  const trip = req.params.tripId;
+  const { driver, rating, comment, tags, categoryRatings, media } = req.body;
 
-  // Check existing review
-  const existingReview = await Review.findWithoutPopulate({ tripId });
+  const existingReview = await Review.findWithoutPopulate({ trip });
   if (existingReview.length > 0) {
     return next(new AppError('Review already exists for this trip', 400));
   }
 
-  // Create review - model will validate all required fields and constraints
   const newReview = await Review.create({
-    tripId,
-    riderId,
-    driverId: req.body.driverId, // Should be provided in request
+    trip,
+    rider,
+    driver,
     rating,
     comment: comment || '',
     tags: tags || [],
@@ -354,7 +318,6 @@ exports.createRiderReview = catchAsync(async (req, res, next) => {
     media: media || [],
   });
 
-  // Update driver's average rating
   await updateDriverRating(newReview.driver);
 
   res.status(201).json({
@@ -366,25 +329,21 @@ exports.createRiderReview = catchAsync(async (req, res, next) => {
   });
 });
 
-// UPDATE RIDER'S OWN REVIEW
 exports.updateRiderReview = catchAsync(async (req, res, next) => {
   const reviewId = req.params.id;
   const riderId = req.user.id;
   const { rating, comment, tags, categoryRatings } = req.body;
 
-  // Find review
   const review = await Review.findById(reviewId);
 
   if (!review) {
     return next(new AppError('Review not found', 404));
   }
 
-  // Check if rider owns this review
   if (review.rider._id.toString() !== riderId) {
     return next(new AppError('You can only update your own reviews', 403));
   }
 
-  // Check if review was created within last 24 hours (optional business rule)
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   if (review.createdAt < oneDayAgo) {
     return next(
@@ -395,22 +354,22 @@ exports.updateRiderReview = catchAsync(async (req, res, next) => {
     );
   }
 
-  // Update review
-  const updatedReview = await Review.findByIdAndUpdate(
-    reviewId,
-    {
-      rating: rating || review.rating,
-      comment: comment !== undefined ? comment : review.comment,
-      tags: tags || review.tags,
-      categoryRatings: categoryRatings || review.categoryRatings,
-      updatedAt: new Date(),
-    },
-    { new: true, runValidators: true }
-  );
+  // Safely prepare update data
+  const updateData = {};
+  if (rating !== undefined) updateData.rating = rating;
+  if (comment !== undefined) updateData.comment = comment;
+  if (tags !== undefined) updateData.tags = tags;
+  if (categoryRatings !== undefined)
+    updateData.categoryRatings = categoryRatings;
+  updateData.updatedAt = new Date();
 
-  // Update driver's average rating if rating changed
-  if (rating && rating !== review.rating) {
-    await updateDriverRating(review.driver);
+  const updatedReview = await Review.findByIdAndUpdate(reviewId, updateData, {
+    new: true,
+    runValidators: true,
+  });
+
+  if (rating !== undefined && rating !== review.rating) {
+    await updateDriverRating(review.driver._id);
   }
 
   res.status(200).json({
@@ -426,23 +385,19 @@ exports.updateRiderReview = catchAsync(async (req, res, next) => {
 // INTERACTION FUNCTIONS
 // ===========================================
 
-// MARK REVIEW AS HELPFUL
 exports.markReviewHelpful = catchAsync(async (req, res, next) => {
-  const { reviewId } = req.params;
+  const reviewId = req.params.id;
   const userId = req.user.id;
-  const userType = req.user.role === 'driver' ? 'Driver' : 'Rider';
+  const userType = req.user.role;
 
   const review = await Review.findById(reviewId);
-
   if (!review) {
     return next(new AppError('Review not found', 404));
   }
 
-  // Check if user already voted
   const existingVote = review.helpfulBy.find(
     (vote) => vote.userId.toString() === userId && vote.userType === userType
   );
-
   if (existingVote) {
     return next(
       new AppError('You have already marked this review as helpful', 400)
@@ -460,29 +415,25 @@ exports.markReviewHelpful = catchAsync(async (req, res, next) => {
   });
 });
 
-// REPORT REVIEW
 exports.reportReview = catchAsync(async (req, res, next) => {
-  const { reviewId } = req.params;
+  const reviewId = req.params.id;
   const { reason } = req.body;
   const userId = req.user.id;
-  const userType = req.user.role === 'driver' ? 'Driver' : 'Rider';
+  const userType = req.user.role;
 
   if (!reason) {
     return next(new AppError('Please provide a reason for reporting', 400));
   }
 
   const review = await Review.findById(reviewId);
-
   if (!review) {
     return next(new AppError('Review not found', 404));
   }
 
-  // Check if user already reported
   const existingReport = review.reportedBy.find(
     (report) =>
       report.userId.toString() === userId && report.userType === userType
   );
-
   if (existingReport) {
     return next(new AppError('You have already reported this review', 400));
   }
@@ -495,9 +446,8 @@ exports.reportReview = catchAsync(async (req, res, next) => {
   });
 });
 
-// DRIVER RESPONSE TO REVIEW
 exports.addDriverResponse = catchAsync(async (req, res, next) => {
-  const { reviewId } = req.params;
+  const reviewId = req.params.id;
   const { response } = req.body;
   const driverId = req.user.id;
 
@@ -506,17 +456,14 @@ exports.addDriverResponse = catchAsync(async (req, res, next) => {
   }
 
   const review = await Review.findById(reviewId);
-
   if (!review) {
     return next(new AppError('Review not found', 404));
   }
 
-  // Check if driver is the one being reviewed
-  if (review.driverId.toString() !== driverId) {
+  if (review.driver._id.toString() !== driverId) {
     return next(new AppError('You can only respond to reviews about you', 403));
   }
 
-  // Check if response already exists
   if (review.response && review.response.comment) {
     return next(new AppError('You have already responded to this review', 400));
   }
@@ -536,10 +483,9 @@ exports.addDriverResponse = catchAsync(async (req, res, next) => {
 // HELPER FUNCTIONS
 // ===========================================
 
-// Helper function to update driver's average rating
 async function updateDriverRating(driverId) {
   try {
-    const Driver = require('./../Model/driverModel'); // Import here to avoid circular dependency
+    const Driver = require('./../Model/driverModel');
     const ratingStats = await Review.getDriverAverageRating(driverId);
 
     await Driver.findByIdAndUpdate(driverId, {
@@ -555,28 +501,15 @@ async function updateDriverRating(driverId) {
   }
 }
 
-// GET TOP 5 REVIEWS (Mixed - Riders and Drivers)
 exports.getTopReviews = catchAsync(async (req, res, next) => {
   const topReviews = await Review.aggregate([
-    {
-      $match: {
-        status: 'active',
-      },
-    },
-    {
-      $sort: {
-        rating: -1,
-        helpfulVotes: -1,
-        createdAt: -1,
-      },
-    },
-    {
-      $limit: 5,
-    },
+    { $match: { status: 'active' } },
+    { $sort: { rating: -1, helpfulVotes: -1, createdAt: -1 } },
+    { $limit: 5 },
     {
       $lookup: {
         from: 'riders',
-        localField: 'riderId',
+        localField: 'rider',
         foreignField: '_id',
         as: 'rider',
       },
@@ -584,7 +517,7 @@ exports.getTopReviews = catchAsync(async (req, res, next) => {
     {
       $lookup: {
         from: 'drivers',
-        localField: 'driverId',
+        localField: 'driver',
         foreignField: '_id',
         as: 'driver',
       },
@@ -592,7 +525,7 @@ exports.getTopReviews = catchAsync(async (req, res, next) => {
     {
       $lookup: {
         from: 'trips',
-        localField: 'tripId',
+        localField: 'trip',
         foreignField: '_id',
         as: 'trip',
       },
