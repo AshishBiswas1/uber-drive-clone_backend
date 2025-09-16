@@ -67,7 +67,7 @@ const tripSchema = mongoose.Schema(
         'driver_arriving',
         'driver_arrived',
         'trip_started',
-        'trip_completed',
+        'completed',
         'cancelled_by_rider',
         'cancelled_by_driver',
         'no_show',

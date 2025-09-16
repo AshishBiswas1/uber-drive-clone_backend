@@ -57,6 +57,10 @@ const riderSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  verified: {
+    type: Boolean,
+    default: false,
+  },
 
   // Performance Metrics
   totalRides: { type: Number, default: 0 },

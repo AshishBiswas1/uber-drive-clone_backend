@@ -7,6 +7,7 @@ const Email = require('./../util/email');
 const { promisify } = require('util');
 const Driver = require('./../Model/driverModel');
 const Rider = require('./../Model/riderModel');
+const { initiatePhoneVerification } = require('../util/smsVerification');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -41,6 +42,7 @@ const createSendToken = (user, statusCode, res, userType) => {
 };
 
 // TODO: Add the GPS in frontend and then the users current location
+
 exports.signup = (Model) =>
   catchAsync(async (req, res, next) => {
     const { name, email, password, passwordConfirm, phoneNo, licenceNo } =
@@ -54,13 +56,50 @@ exports.signup = (Model) =>
       return next(new AppError('Driver must provide licence number', 400));
     }
 
-    // ✅ FIXED: Don't set currentLocation during signup
+    // Format phone number properly
+    const formattedPhoneNo = phoneNo.startsWith('+')
+      ? phoneNo
+      : `+91${phoneNo}`;
+
+    // Check if phone number or email is already registered
+    const existingUser = await Model.findOne({
+      $or: [
+        { phoneNo: formattedPhoneNo },
+        { phoneNo: phoneNo },
+        { email: email.toLowerCase() },
+      ],
+    });
+
+    if (existingUser) {
+      if (existingUser.email === email.toLowerCase()) {
+        return next(
+          new AppError(`${Model.modelName} with this email already exists`, 400)
+        );
+      }
+      if (
+        existingUser.phoneNo === formattedPhoneNo ||
+        existingUser.phoneNo === phoneNo
+      ) {
+        return next(
+          new AppError(
+            `${Model.modelName} with this phone number already exists`,
+            400
+          )
+        );
+      }
+    }
+
+    // Create user data with phone verification fields set to false initially
     const filterBody = {
       name,
-      email,
+      email: email.toLowerCase(),
       password,
       passwordConfirm,
-      phoneNo,
+      phoneNo: formattedPhoneNo,
+      // Set phone verification fields to false by default
+      phoneVerified: false,
+      phoneVerifiedAt: null,
+      firebaseUid: null,
     };
 
     if (Model.modelName === 'Driver' && licenceNo) {
@@ -69,6 +108,28 @@ exports.signup = (Model) =>
 
     const newUser = await Model.create(filterBody);
 
+    // 🔥 NEW: Auto-initiate phone verification and prepare for SMS
+    let verificationSession = null;
+    let smsStatus = 'failed';
+
+    try {
+      // Initiate phone verification session
+      verificationSession = await initiatePhoneVerification(formattedPhoneNo);
+      smsStatus = 'initiated';
+
+      console.log(
+        `📱 Phone verification initiated for new user: ${newUser.name} (${formattedPhoneNo})`
+      );
+      console.log(`🔑 Session ID: ${verificationSession.sessionId}`);
+    } catch (error) {
+      console.error(
+        '❌ Failed to initiate phone verification during signup:',
+        error
+      );
+      // Don't fail signup if verification fails, just log it
+    }
+
+    // Send welcome email
     try {
       const welcomeURL =
         process.env.NODE_ENV === 'production'
@@ -80,7 +141,56 @@ exports.signup = (Model) =>
       console.error('❌ Failed to send welcome email:', emailError);
     }
 
-    createSendToken(newUser, 201, res, Model.modelName);
+    // Prepare response with verification session details
+    const additionalData = {
+      phoneVerification: {
+        isVerified: false,
+        sessionId: verificationSession?.sessionId || null,
+        smsStatus: smsStatus,
+        phone: formattedPhoneNo,
+        expiresIn: verificationSession?.expiresIn || null,
+        message:
+          smsStatus === 'initiated'
+            ? 'Account created successfully! SMS verification has been initiated. Use Firebase SDK to send OTP to complete verification.'
+            : 'Account created successfully! Please verify your mobile number to access all features.',
+        action:
+          smsStatus === 'initiated'
+            ? 'Use Firebase SDK with the provided sessionId to send OTP'
+            : 'Navigate to Profile/Settings → Verify Phone Number',
+        endpoints: {
+          verify: '/api/auth/verify-phone',
+        },
+      },
+      message: `${Model.modelName} account created successfully! ${
+        smsStatus === 'initiated'
+          ? 'SMS verification initiated - use the sessionId to send OTP.'
+          : 'Please verify your mobile number later.'
+      }`,
+      nextSteps:
+        smsStatus === 'initiated'
+          ? [
+              `Welcome to Uber Drive! Your ${Model.modelName.toLowerCase()} account has been created.`,
+              'SMS verification has been initiated:',
+              '1. Use Firebase SDK with the provided sessionId to send OTP',
+              '2. User will receive OTP on their phone',
+              '3. Complete verification using /api/auth/verify-phone endpoint',
+              'Note: Session expires in 10 minutes.',
+            ]
+          : [
+              `Welcome to Uber Drive! Your ${Model.modelName.toLowerCase()} account has been created.`,
+              'To complete your setup and access all features:',
+              '1. Go to your profile/settings page',
+              "2. Click 'Verify Phone Number'",
+              '3. Follow the verification process',
+              `Note: Phone verification is required for ${
+                Model.modelName === 'Driver'
+                  ? 'receiving ride requests and payments'
+                  : 'booking rides and making payments'
+              }.`,
+            ],
+    };
+
+    createSendToken(newUser, 201, res, Model.modelName, additionalData);
   });
 
 exports.login = (Model) =>

@@ -10,6 +10,7 @@ const tripRouter = require('./Router/tripRouter');
 const driverRouter = require('./Router/driverRouter');
 const riderRouter = require('./Router/riderRouter');
 const reviewRouter = require('./Router/reviewRouter');
+const paymentRouter = require('./Router/paymentRouter');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/drive/trips', tripRouter);
 app.use('/api/drive/driver', driverRouter);
 app.use('/api/drive/rider', riderRouter);
 app.use('/api/drive/review', reviewRouter);
+app.use('/api/drive/payment', paymentRouter);
 
 app.all('*', (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
