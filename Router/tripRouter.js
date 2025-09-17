@@ -14,6 +14,13 @@ router.route('/:id/cancel').patch(tripController.cancelTrip);
 
 router.route('/:id/route').patch(tripController.updateTripRoute);
 
+router
+  .route('/:tripId/route/planned/append')
+  .post(
+    authController.restrictTo('rider', 'admin'),
+    tripController.appendChosenRoute
+  );
+
 router.route('/analytics').get(tripController.getTripAnalytics);
 
 router.route('/fare-estimate').post(tripController.calculateFareEstimate);

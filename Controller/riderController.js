@@ -4,6 +4,14 @@ const AppError = require('./../util/appError');
 const { formatDriversWithDistance } = require('./../util/DriverFinding');
 const Driver = require('./../Model/driverModel');
 
+const filterObj = (obj, ...allowedFields) => {
+  const newObj = {};
+  Object.keys(obj).forEach((el) => {
+    if (allowedFields.includes(el)) newObj[el] = obj[el];
+  });
+  return newObj;
+};
+
 exports.getAllRiders = catchAsync(async (req, res, next) => {
   const riders = await Rider.find();
 
@@ -120,5 +128,39 @@ exports.getNearbyDrivers = catchAsync(async (req, res, next) => {
     data: {
       drivers: driversWithDistance,
     },
+  });
+});
+
+exports.getMe = catchAsync(async (req, res, next) => {
+  req.params.id = req.user.id;
+  next();
+});
+
+exports.updateMe = catchAsync(async (req, res, next) => {
+  if (req.body.password || req.body.passwordConfirm) {
+    return next(new AppError('This route is not for password updates', 400));
+  }
+  const filteredBody = filterObj(req.body, 'name', 'email', 'phoneNo');
+  if (req.file) filteredBody.photo = req.file.filename;
+
+  const updatedUser = await Rider.findByIdAndUpdate(req.user.id, filteredBody, {
+    new: true,
+    runValidators: true,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: updatedUser,
+    },
+  });
+});
+
+exports.deleteMe = catchAsync(async (req, res, next) => {
+  await Rider.findByIdAndUpdate(req.user.id, { isActive: false });
+
+  res.status(204).json({
+    status: 'success',
+    data: null,
   });
 });

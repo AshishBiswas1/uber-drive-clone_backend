@@ -15,7 +15,19 @@ router
   .route('/resetPassword/:token')
   .patch(authController.resetPassword(Driver));
 
-router.use(authController.protect, authController.restrictTo('admin'));
+router.use(authController.protect);
+
+router.use(authController.protect);
+
+router.route('/Me').get(driverController.getMe, driverController.getDriver);
+
+router.route('/updateMe').patch(driverController.updateMe);
+
+router.route('/deleteMe').delete(driverController.deleteMe);
+
+router.route('/updatePassword').patch(authController.updatePassword(Driver));
+
+router.use(authController.restrictTo('admin'));
 
 router
   .route('/')

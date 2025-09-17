@@ -16,6 +16,15 @@ router
   .patch(authController.resetPassword(Rider));
 
 router.use(authController.protect);
+
+router.route('/Me').get(riderController.getMe, riderController.getRider);
+
+router.route('/updateMe').patch(riderController.updateMe);
+
+router.route('/deleteMe').delete(riderController.deleteMe);
+
+router.route('/updatePassword').patch(authController.updatePassword(Rider));
+
 router
   .route('/getDriver')
   .get(authController.restrictTo('rider'), riderController.getNearbyDrivers);

@@ -3,6 +3,20 @@ const catchAsync = require('./../util/catchAsync');
 const AppError = require('./../util/appError');
 const FareService = require('./../service/service');
 
+const isValidLngLat = ([lng, lat]) =>
+  typeof lng === 'number' &&
+  typeof lat === 'number' &&
+  lng >= -180 &&
+  lng <= 180 &&
+  lat >= -90 &&
+  lat <= 90;
+
+const normalizeRoute = (route) =>
+  route.map((p) => ({
+    timestamp: p.timestamp ? new Date(p.timestamp) : new Date(),
+    coordinates: p.coordinates,
+  }));
+
 exports.getAllTrips = catchAsync(async (req, res, next) => {
   const trips = await Trip.find();
 
@@ -230,4 +244,73 @@ exports.calculateFareEstimate = catchAsync(async (req, res, next) => {
   } catch (error) {
     return next(new AppError(error.message, 400));
   }
+});
+
+exports.appendChosenRoute = catchAsync(async (req, res, next) => {
+  const { tripId } = req.params;
+  const { route } = req.body;
+
+  if (!tripId) return next(new AppError('tripId is required', 400));
+  if (!Array.isArray(route) || route.length === 0) {
+    return next(new AppError('route must be a non-empty array', 400));
+  }
+
+  for (const point of route) {
+    if (!point || !isValidLngLat(point.coordinates)) {
+      return next(
+        new AppError(
+          'Each route point must have valid coordinates [lng, lat]',
+          400
+        )
+      );
+    }
+    if (point.timestamp && isNaN(new Date(point.timestamp).getTime())) {
+      return next(new AppError(`Invalid timestamp: ${point.timestamp}`, 400));
+    }
+  }
+
+  const trip = await Trip.findById(tripId).select('riderId status route');
+  if (!trip) return next(new AppError('Trip not found', 404));
+
+  const isRider =
+    req.user?.role === 'rider' && trip.riderId?.toString() === req.user.id;
+  const isAdmin = req.user?.role === 'admin';
+  if (!isRider && !isAdmin) {
+    return next(new AppError('Not authorized to set route for this trip', 403));
+  }
+
+  const blockedStatuses = [
+    'trip_started',
+    'completed',
+    'cancelled_by_rider',
+    'cancelled_by_driver',
+    'no_show',
+  ];
+  if (blockedStatuses.includes(trip.status) && !isAdmin) {
+    return next(
+      new AppError(
+        `Cannot append route when trip status is "${trip.status}"`,
+        400
+      )
+    );
+  }
+
+  const normalized = normalizeRoute(route);
+
+  const updated = await Trip.findByIdAndUpdate(
+    tripId,
+    { $push: { route: { $each: normalized } } },
+    { new: true, runValidators: true, select: 'route' }
+  );
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      tripId: updated._id,
+      appendedCount: normalized.length,
+      totalPoints: updated.route.length,
+      firstAppended: normalized[0],
+      lastAppended: normalized[normalized.length - 1],
+    },
+  });
 });

@@ -141,8 +141,26 @@ const tripSchema = mongoose.Schema(
     },
     route: [
       {
-        timestamp: Date,
-        coordinates: [Number],
+        timestamp: { type: Date, required: true, default: Date.now },
+        coordinates: {
+          type: [Number], // [lng, lat]
+          required: true,
+          validate: {
+            validator: function (v) {
+              return (
+                Array.isArray(v) &&
+                v.length === 2 &&
+                typeof v[0] === 'number' &&
+                typeof v[1] === 'number' &&
+                v[0] >= -180 &&
+                v[0] <= 180 &&
+                v[1] >= -90 &&
+                v[1] <= 90
+              );
+            },
+            message: 'coordinates must be [lng, lat] within valid ranges',
+          },
+        },
       },
     ],
     paymentId: {
@@ -163,6 +181,7 @@ const tripSchema = mongoose.Schema(
 
 tripSchema.index({ pickupLocation: '2dsphere' });
 tripSchema.index({ dropoffLocation: '2dsphere' });
+tripSchema.index({ 'route.coordinates': '2dsphere' }); // optional
 
 tripSchema.index({ riderId: 1, status: 1 });
 tripSchema.index({ driverId: 1, status: 1 });
