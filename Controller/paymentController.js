@@ -1,4 +1,4 @@
-// controllers/paymentController.js
+// controllers/paymentController.js - COMPLETE WITH ENHANCED SUCCESS FLOW - FIXED
 const Stripe = require('stripe');
 const Payment = require('../Model/paymentModel');
 const Trip = require('../Model/tripsModel');
@@ -16,24 +16,27 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 // ===========================================
 
 function buildSuccessUrl(host, paymentId) {
-  // Build URL with your API structure: protocol://host/api/drive/payments/success?payment_id=xxx
-  console.log(`${host}/api/drive/payment/success?payment_id=${paymentId}`);
-  return `${host}/api/drive/payment/success?payment_id=${paymentId}`;
+  // ✅ NEW: Build frontend success URL that will handle the redirect flow
+  const frontendUrl = process.env.FRONTEND_URL || host.replace('/api', '');
+  console.log(
+    `Frontend success URL: ${frontendUrl}/payment-success?payment_id=${paymentId}`
+  );
+  return `${frontendUrl}/payment-success?payment_id=${paymentId}`;
 }
 
 function buildCancelUrl(host, paymentId) {
-  // Build URL with your API structure: protocol://host/api/drive/payments/cancel?payment_id=xxx
-  console.log(`${host}/api/drive/payment/cancel?payment_id=${paymentId}`);
-  return `${host}/api/drive/payment/cancel?payment_id=${paymentId}`;
+  const frontendUrl = process.env.FRONTEND_URL || host.replace('/api', '');
+  console.log(
+    `Frontend cancel URL: ${frontendUrl}/payment-cancel?payment_id=${paymentId}`
+  );
+  return `${frontendUrl}/payment-cancel?payment_id=${paymentId}`;
 }
 
 function calculatePlatformFee(amount) {
-  // Platform takes 20% commission
   return Math.round(amount * 0.2);
 }
 
 function calculateDriverEarnings(amount) {
-  // Driver gets 80% after platform fee
   return Math.round(amount * 0.8);
 }
 
@@ -56,6 +59,7 @@ exports.createCheckoutSession = catchAsync(async (req, res, next) => {
     return next(new AppError('Trip not found', 404));
   }
 
+  console.log(trip.riderId);
   // Verify rider owns this trip
   if (trip.riderId._id.toString() !== req.user.id) {
     return next(new AppError('You can only pay for your own trips', 403));
@@ -111,6 +115,9 @@ exports.createCheckoutSession = catchAsync(async (req, res, next) => {
     },
   });
 
+  // ✅ REMOVED: Don't update rider stats here - only update after successful payment
+  // This prevents double counting when both creation and success handlers run
+
   const success_url = buildSuccessUrl(host, paymentDoc._id.toString());
   const cancel_url = buildCancelUrl(host, paymentDoc._id.toString());
 
@@ -122,9 +129,9 @@ exports.createCheckoutSession = catchAsync(async (req, res, next) => {
         price_data: {
           currency: 'inr',
           product_data: {
-            name: `Uber Drive - Trip Payment`,
+            name: `RideFlex Pro - Trip Payment`,
             description: `From ${trip.pickupLocation.address} to ${trip.dropoffLocation.address}`,
-            images: ['https://yourdomain.com/uber-logo.png'],
+            images: ['https://yourdomain.com/rideflex-logo.png'],
           },
           unit_amount: Math.round(finalAmount * 100), // Convert to paise
         },
@@ -260,10 +267,10 @@ exports.confirmPayment = catchAsync(async (req, res, next) => {
 });
 
 // ===========================================
-// SUCCESS & CANCEL HANDLERS
+// ✅ ENHANCED SUCCESS & CANCEL HANDLERS
 // ===========================================
 
-// Payment Success Handler
+// ✅ FIXED: Enhanced Payment Success Handler with Proper Rider Stats Update
 exports.paymentSuccess = catchAsync(async (req, res, next) => {
   const { payment_id } = req.query;
 
@@ -271,61 +278,127 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
     return next(new AppError('Payment ID is required', 400));
   }
 
-  // Get payment details
-  const payment = await Payment.findById(payment_id)
-    .populate('tripId', 'pickupLocation dropoffLocation fare distance duration')
-    .populate('riderId', 'name email phoneNo')
-    .populate('driverId', 'name email phoneNo');
+  console.log('🎉 Processing payment success for payment ID:', payment_id);
 
-  if (!payment) {
-    return next(new AppError('Payment not found', 404));
-  }
+  try {
+    // Get payment details with better error handling
+    const payment = await Payment.findById(payment_id)
+      .populate(
+        'tripId',
+        'pickupLocation dropoffLocation fare distance duration'
+      )
+      .populate('riderId', 'name email phoneNo totalTrips totalAmountSpent')
+      .populate('driverId', 'name email phoneNo');
 
-  // Update payment status to paid if not already updated by webhook
-  if (payment.status !== 'paid') {
-    payment.status = 'paid';
-    payment.completedAt = new Date();
-    await payment.save();
+    if (!payment) {
+      console.error('❌ Payment not found for ID:', payment_id);
+      return next(new AppError('Payment not found', 404));
+    }
 
-    // Update trip payment status
-    await Trip.findByIdAndUpdate(payment.tripId, { paymentStatus: 'paid' });
-  }
+    console.log('💳 Found payment:', {
+      id: payment._id,
+      status: payment.status,
+      amount: payment.amount,
+    });
 
-  // You can redirect to your frontend success page or return JSON
-  // For API, return JSON response
-  res.status(200).json({
-    status: 'success',
-    message: 'Payment completed successfully!',
-    data: {
-      payment: {
-        id: payment._id,
-        amount: payment.amount,
-        currency: payment.currency,
-        status: payment.status,
-        completedAt: payment.completedAt,
-        trip: {
-          id: payment.tripId._id,
-          from: payment.tripId.pickupLocation.address,
-          to: payment.tripId.dropoffLocation.address,
-          fare: payment.tripId.fare.totalFare,
-          distance: payment.tripId.distance,
-        },
-        driver: {
-          name: payment.driverId.name,
-          phoneNo: payment.driverId.phoneNo,
-        },
-        breakdown: {
-          baseFare: payment.baseFare,
-          tipAmount: payment.tipAmount,
-          discount: payment.discount,
-          totalAmount: payment.amount,
+    // Update payment status to paid if not already updated by webhook
+    if (payment.status !== 'paid') {
+      console.log('💳 Updating payment status to paid');
+
+      payment.status = 'paid';
+      payment.completedAt = new Date();
+      await payment.save();
+
+      // Update trip payment status
+      await Trip.findByIdAndUpdate(payment.tripId, { paymentStatus: 'paid' });
+
+      // ✅ FIXED: Update rider statistics only once when payment is confirmed
+      console.log('📊 Updating rider statistics...');
+
+      const rider = await Rider.findById(payment.riderId._id);
+      if (rider) {
+        // ✅ FIXED: Check if this payment has already been counted to avoid double counting
+        const hasBeenCounted = await Payment.countDocuments({
+          riderId: payment.riderId._id,
+          status: 'paid',
+          createdAt: { $lt: payment.createdAt }, // Count payments created before this one
+        });
+
+        // Only update if this is a genuinely new completed trip
+        const expectedTripCount = hasBeenCounted + 1;
+
+        if (rider.totalTrips < expectedTripCount) {
+          // Increment trip count
+          rider.totalTrips = expectedTripCount;
+
+          // Recalculate total amount spent from all paid payments
+          const totalSpentResult = await Payment.aggregate([
+            { $match: { riderId: payment.riderId._id, status: 'paid' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } },
+          ]);
+
+          rider.totalAmountSpent = totalSpentResult[0]?.total || 0;
+
+          // Update last payment date
+          rider.lastPaymentDate = new Date();
+
+          await rider.save({ runValidators: false });
+
+          console.log('✅ Rider statistics updated:', {
+            riderId: rider._id,
+            totalTrips: rider.totalTrips,
+            totalAmountSpent: rider.totalAmountSpent,
+          });
+
+          // Update the populated rider data for response
+          payment.riderId.totalTrips = rider.totalTrips;
+          payment.riderId.totalAmountSpent = rider.totalAmountSpent;
+        } else {
+          console.log('ℹ️ Rider stats already up to date, skipping update');
+        }
+      }
+    }
+
+    // Return comprehensive success response
+    res.status(200).json({
+      status: 'success',
+      message: 'Payment completed successfully!',
+      data: {
+        payment: {
+          id: payment._id,
+          amount: payment.amount,
+          currency: payment.currency,
+          status: payment.status,
+          completedAt: payment.completedAt,
+          trip: {
+            id: payment.tripId._id,
+            from: payment.tripId.pickupLocation.address,
+            to: payment.tripId.dropoffLocation.address,
+            fare: payment.tripId.fare.totalFare,
+            distance: payment.tripId.distance,
+          },
+          driver: {
+            name: payment.driverId.name,
+            phoneNo: payment.driverId.phoneNo,
+          },
+          rider: {
+            name: payment.riderId.name,
+            totalTrips: payment.riderId.totalTrips,
+            totalAmountSpent: payment.riderId.totalAmountSpent,
+          },
+          breakdown: {
+            baseFare: payment.baseFare,
+            tipAmount: payment.tipAmount,
+            discount: payment.discount,
+            totalAmount: payment.amount,
+          },
         },
       },
-    },
-  });
-
-  // Alternative: Redirect to frontend success page
-  // res.redirect(`${process.env.FRONTEND_URL}/payment/success?payment_id=${payment_id}`);
+    });
+  } catch (error) {
+    console.error('❌ Error in payment success handler:', error);
+    return next(new AppError('Failed to process payment success', 500));
+  }
 });
 
 // Payment Cancel Handler
@@ -370,9 +443,6 @@ exports.paymentCancel = catchAsync(async (req, res, next) => {
       },
     },
   });
-
-  // Alternative: Redirect to frontend cancel page
-  // res.redirect(`${process.env.FRONTEND_URL}/payment/cancel?payment_id=${payment_id}`);
 });
 
 // Payment Return Handler (for payment intents)
@@ -635,7 +705,7 @@ exports.processTip = catchAsync(async (req, res, next) => {
 });
 
 // ===========================================
-// WEBHOOK HANDLER
+// ✅ FIXED WEBHOOK HANDLER
 // ===========================================
 
 exports.webhook = async (req, res) => {
@@ -657,6 +727,11 @@ exports.webhook = async (req, res) => {
         const session = event.data.object;
         const paymentId = session.metadata?.paymentId;
         if (paymentId) {
+          console.log(
+            '🎉 Stripe checkout completed via webhook for payment:',
+            paymentId
+          );
+
           const payment = await Payment.findByIdAndUpdate(
             paymentId,
             {
@@ -673,6 +748,42 @@ exports.webhook = async (req, res) => {
             await Trip.findByIdAndUpdate(payment.tripId, {
               paymentStatus: 'paid',
             });
+
+            // ✅ FIXED: Use the same logic as paymentSuccess to avoid double counting
+            const rider = await Rider.findById(payment.riderId);
+            if (rider) {
+              // Check if this payment has already been counted
+              const hasBeenCounted = await Payment.countDocuments({
+                riderId: payment.riderId,
+                status: 'paid',
+                createdAt: { $lt: payment.createdAt },
+              });
+
+              const expectedTripCount = hasBeenCounted + 1;
+
+              if (rider.totalTrips < expectedTripCount) {
+                rider.totalTrips = expectedTripCount;
+
+                // Recalculate total amount from all paid payments
+                const totalSpentResult = await Payment.aggregate([
+                  { $match: { riderId: payment.riderId, status: 'paid' } },
+                  { $group: { _id: null, total: { $sum: '$amount' } } },
+                ]);
+
+                rider.totalAmountSpent = totalSpentResult[0]?.total || 0;
+                rider.lastPaymentDate = new Date();
+
+                await rider.save({ runValidators: false });
+
+                console.log('✅ Rider stats updated via webhook:', {
+                  riderId: rider._id,
+                  totalTrips: rider.totalTrips,
+                  totalAmountSpent: rider.totalAmountSpent,
+                });
+              } else {
+                console.log('ℹ️ Webhook: Rider stats already up to date');
+              }
+            }
           }
         }
         break;
@@ -781,5 +892,3 @@ exports.getPaymentDetails = catchAsync(async (req, res, next) => {
     data: { payment },
   });
 });
-
-// Add all your placeholder functions here...

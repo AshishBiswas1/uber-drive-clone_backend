@@ -92,12 +92,10 @@ exports.getNearbyDrivers = catchAsync(async (req, res, next) => {
 
   const longitude = parseFloat(lng);
   const latitude = parseFloat(lat);
-
   const maxDistance = 5000;
 
   const drivers = await Driver.find({
     status: 'online',
-    approvalStatus: 'approved',
     isActive: true,
     currentLocation: {
       $nearSphere: {
@@ -110,7 +108,7 @@ exports.getNearbyDrivers = catchAsync(async (req, res, next) => {
     },
   })
     .select(
-      'name photo phoneNo licenceNo vehicle status currentLocation totalTrips acceptanceRate'
+      '_id name photo phoneNo licenceNo vehicle status currentLocation totalTrips acceptanceRate' // ✅ FIXED: Use _id instead of id
     )
     .lean();
 

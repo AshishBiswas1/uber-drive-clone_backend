@@ -3,6 +3,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const AppError = require('./util/appError');
+const cors = require('cors');
 const globalErrorHandler = require('./Controller/errorController');
 
 // All Routers
@@ -17,6 +18,13 @@ const app = express();
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
+
+app.use(
+  cors({
+    origin: ['http://localhost:3000'],
+    credentials: true,
+  })
+);
 
 app.use(cookieParser());
 

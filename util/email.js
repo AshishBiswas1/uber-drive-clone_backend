@@ -25,7 +25,7 @@ module.exports = class Email {
     const html = pug.renderFile(
       `${__dirname}/../views/emails/${template}.pug`,
       {
-        fileName: this.firstName,
+        firstName: this.firstName, // ← Fixed
         url: this.url,
         subject,
         userType: this.userType,

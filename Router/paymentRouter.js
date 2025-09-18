@@ -1,4 +1,4 @@
-// routes/paymentRoutes.js
+// routes/paymentRoutes.js - COMPLETE WITH ENHANCED SUCCESS ROUTE
 const express = require('express');
 const router = express.Router();
 const paymentController = require('../Controller/paymentController');
@@ -14,6 +14,11 @@ router.post(
   express.raw({ type: 'application/json' }),
   paymentController.webhook
 );
+
+// ✅ NEW: Public success and cancel routes (no auth required for frontend redirects)
+router.get('/success', paymentController.paymentSuccess);
+router.get('/cancel', paymentController.paymentCancel);
+router.get('/return', paymentController.paymentReturn);
 
 // ===========================================
 // AUTHENTICATION MIDDLEWARE
@@ -109,9 +114,5 @@ router.get(
   authController.restrictTo('rider', 'driver'),
   paymentController.getPaymentDetails
 );
-
-router.get('/success', paymentController.paymentSuccess);
-router.get('/cancel', paymentController.paymentCancel);
-router.get('/return', paymentController.paymentReturn);
 
 module.exports = router;

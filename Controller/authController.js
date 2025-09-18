@@ -7,7 +7,7 @@ const Email = require('./../util/email');
 const { promisify } = require('util');
 const Driver = require('./../Model/driverModel');
 const Rider = require('./../Model/riderModel');
-const { initiatePhoneVerification } = require('../util/smsVerification');
+const { generateAndSendOTP } = require('../util/smsVerification');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -22,7 +22,8 @@ const createSendToken = (user, statusCode, res, userType) => {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
-    httpOnly: true,
+    httpOnly: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
   };
 
   if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
@@ -31,14 +32,16 @@ const createSendToken = (user, statusCode, res, userType) => {
 
   user.password = undefined;
 
-  res.status(statusCode).json({
+  const responseData = {
     status: 'success',
     token,
     userType,
     data: {
       user,
     },
-  });
+  };
+
+  res.status(statusCode).json(responseData);
 };
 
 // TODO: Add the GPS in frontend and then the users current location
@@ -97,9 +100,7 @@ exports.signup = (Model) =>
       passwordConfirm,
       phoneNo: formattedPhoneNo,
       // Set phone verification fields to false by default
-      phoneVerified: false,
-      phoneVerifiedAt: null,
-      firebaseUid: null,
+      verified: true,
     };
 
     if (Model.modelName === 'Driver' && licenceNo) {
@@ -107,27 +108,6 @@ exports.signup = (Model) =>
     }
 
     const newUser = await Model.create(filterBody);
-
-    // 🔥 NEW: Auto-initiate phone verification and prepare for SMS
-    let verificationSession = null;
-    let smsStatus = 'failed';
-
-    try {
-      // Initiate phone verification session
-      verificationSession = await initiatePhoneVerification(formattedPhoneNo);
-      smsStatus = 'initiated';
-
-      console.log(
-        `📱 Phone verification initiated for new user: ${newUser.name} (${formattedPhoneNo})`
-      );
-      console.log(`🔑 Session ID: ${verificationSession.sessionId}`);
-    } catch (error) {
-      console.error(
-        '❌ Failed to initiate phone verification during signup:',
-        error
-      );
-      // Don't fail signup if verification fails, just log it
-    }
 
     // Send welcome email
     try {
@@ -141,56 +121,7 @@ exports.signup = (Model) =>
       console.error('❌ Failed to send welcome email:', emailError);
     }
 
-    // Prepare response with verification session details
-    const additionalData = {
-      phoneVerification: {
-        isVerified: false,
-        sessionId: verificationSession?.sessionId || null,
-        smsStatus: smsStatus,
-        phone: formattedPhoneNo,
-        expiresIn: verificationSession?.expiresIn || null,
-        message:
-          smsStatus === 'initiated'
-            ? 'Account created successfully! SMS verification has been initiated. Use Firebase SDK to send OTP to complete verification.'
-            : 'Account created successfully! Please verify your mobile number to access all features.',
-        action:
-          smsStatus === 'initiated'
-            ? 'Use Firebase SDK with the provided sessionId to send OTP'
-            : 'Navigate to Profile/Settings → Verify Phone Number',
-        endpoints: {
-          verify: '/api/auth/verify-phone',
-        },
-      },
-      message: `${Model.modelName} account created successfully! ${
-        smsStatus === 'initiated'
-          ? 'SMS verification initiated - use the sessionId to send OTP.'
-          : 'Please verify your mobile number later.'
-      }`,
-      nextSteps:
-        smsStatus === 'initiated'
-          ? [
-              `Welcome to Uber Drive! Your ${Model.modelName.toLowerCase()} account has been created.`,
-              'SMS verification has been initiated:',
-              '1. Use Firebase SDK with the provided sessionId to send OTP',
-              '2. User will receive OTP on their phone',
-              '3. Complete verification using /api/auth/verify-phone endpoint',
-              'Note: Session expires in 10 minutes.',
-            ]
-          : [
-              `Welcome to Uber Drive! Your ${Model.modelName.toLowerCase()} account has been created.`,
-              'To complete your setup and access all features:',
-              '1. Go to your profile/settings page',
-              "2. Click 'Verify Phone Number'",
-              '3. Follow the verification process',
-              `Note: Phone verification is required for ${
-                Model.modelName === 'Driver'
-                  ? 'receiving ride requests and payments'
-                  : 'booking rides and making payments'
-              }.`,
-            ],
-    };
-
-    createSendToken(newUser, 201, res, Model.modelName, additionalData);
+    createSendToken(newUser, 201, res, Model.modelName);
   });
 
 exports.login = (Model) =>
@@ -322,16 +253,25 @@ exports.forgetPassword = (Model) =>
     try {
       const resetURL =
         process.env.NODE_ENV === 'production'
-          ? `${
-              process.env.FRONTEND_URL
-            }/api/drive/${Model.modelName.toLowerCase()}/resetPassword/${resetToken}`
-          : `http://localhost:8000/api/drive/${Model.modelName.toLowerCase()}/resetPassword/${resetToken}`;
+          ? `https://your-frontend-domain.com/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
+          : `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`;
 
       await new Email(user, resetURL).sendPasswordReset();
     } catch (err) {
+      // 🔧 ADD DETAILED ERROR LOGGING
+      console.error('❌ Detailed email error:', {
+        message: err.message,
+        stack: err.stack,
+        code: err.code,
+        command: err.command,
+        response: err.response,
+        responseCode: err.responseCode,
+      });
+
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
+
       return next(
         new AppError(
           'There was an error sending the email. Try again later!',

@@ -45,6 +45,10 @@ exports.getTrip = catchAsync(async (req, res, next) => {
 });
 
 exports.createTrip = catchAsync(async (req, res, next) => {
+  if (!req.body.driverId) {
+    return next(new AppError('Driver ID is required', 400));
+  }
+
   const newTrip = await Trip.create({
     riderId: req.body.riderId,
     driverId: req.body.driverId,
@@ -311,6 +315,49 @@ exports.appendChosenRoute = catchAsync(async (req, res, next) => {
       totalPoints: updated.route.length,
       firstAppended: normalized[0],
       lastAppended: normalized[normalized.length - 1],
+    },
+  });
+});
+
+exports.acceptTrip = catchAsync(async (req, res, next) => {
+  const { tripId } = req.params;
+
+  const trip = await Trip.findByIdAndUpdate(
+    tripId,
+    { status: 'trip_started' },
+    { new: true, runValidators: true }
+  );
+  if (!trip) return next(new AppError('Trip not found', 404));
+
+  const isDriver =
+    req.user?.role === 'driver' && trip.driverId?.toString() === req.user.id;
+  const isAdmin = req.user?.role === 'admin';
+  if (!isDriver && !isAdmin) {
+    return next(new AppError('Not authorized to accept this trip', 403));
+  }
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      trip,
+    },
+  });
+});
+
+exports.cancelTrip = catchAsync(async (req, res, next) => {
+  const { tripId } = req.params;
+
+  const trip = await Trip.findByIdAndUpdate(
+    tripId,
+    { status: 'cancelled_by_rider' },
+    { new: true, runValidators: true }
+  );
+  if (!trip) return next(new AppError('Trip not found', 404));
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      trip,
     },
   });
 });

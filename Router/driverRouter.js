@@ -17,7 +17,9 @@ router
 
 router.use(authController.protect);
 
-router.use(authController.protect);
+router.route('/setCurrentLocation').patch(driverController.setCurrentLocation);
+
+router.route('/setDriverStatus').patch(driverController.setDriverStatus);
 
 router.route('/Me').get(driverController.getMe, driverController.getDriver);
 

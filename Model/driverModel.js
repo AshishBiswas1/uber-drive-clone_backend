@@ -53,7 +53,7 @@ const driverSchema = new mongoose.Schema({
   // Profile & Role
   photo: {
     type: String,
-    default: 'default-driver.jpg',
+    default: 'default-avatar.png',
   },
   role: {
     type: String,
@@ -150,6 +150,10 @@ const driverSchema = new mongoose.Schema({
     phone: String,
     relationship: String,
   },
+  vechileType: {
+    type: String,
+    enum: ['Sedan', 'SUV', 'Van'],
+  },
   // Timestamps
   createdAt: {
     type: Date,
@@ -169,7 +173,6 @@ driverSchema.index(
   }
 );
 driverSchema.index({ status: 1 });
-driverSchema.index({ approvalStatus: 1 });
 
 // MIDDLEWARE
 
