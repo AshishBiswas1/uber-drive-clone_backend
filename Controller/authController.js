@@ -261,7 +261,10 @@ exports.forgetPassword = (Model) =>
           ? `https://uber-drive-frontend.vercel.app/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
           : `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`;
 
-      await new Email(user, resetURL).sendPasswordReset();
+      await new Email(
+        user,
+        `https://uber-drive-frontend.vercel.app/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
+      ).sendPasswordReset();
     } catch (err) {
       // 🔧 ADD DETAILED ERROR LOGGING
       console.error('❌ Detailed email error:', {
