@@ -16,12 +16,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 // ===========================================
 
 function buildSuccessUrl(host, paymentId) {
-  const frontendUrl = 'https://uber-drive-frontend.vercel.app/payment-success';
+  const frontendUrl = 'https://uber-drive-frontend.vercel.app';
   return `${frontendUrl}/payment-success?payment_id=${paymentId}`;
 }
 
 function buildCancelUrl(host, paymentId) {
-  const frontendUrl = 'https://uber-drive-frontend.vercel.app/payment-cancel';
+  const frontendUrl = 'https://uber-drive-frontend.vercel.app';
   return `${frontendUrl}/payment-cancel?payment_id=${paymentId}`;
 }
 
