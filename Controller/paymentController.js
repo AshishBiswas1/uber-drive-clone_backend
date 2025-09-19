@@ -16,12 +16,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 // ===========================================
 
 function buildSuccessUrl(host, paymentId) {
-  const frontendUrl = process.env.FRONTEND_URL || host.replace('/api', '');
+  const frontendUrl = 'http://localhost:3000';
   return `${frontendUrl}/payment-success?payment_id=${paymentId}`;
 }
 
 function buildCancelUrl(host, paymentId) {
-  const frontendUrl = process.env.FRONTEND_URL || host.replace('/api', '');
+  const frontendUrl = 'http://localhost:3000';
   return `${frontendUrl}/payment-cancel?payment_id=${paymentId}`;
 }
 

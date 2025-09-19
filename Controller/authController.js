@@ -112,7 +112,7 @@ exports.signup = (Model) =>
     try {
       const welcomeURL =
         process.env.NODE_ENV === 'production'
-          ? process.env.FRONTEND_URL || 'https://youruberclone.com/dashboard'
+          ? 'http://localhost:3000'
           : 'http://localhost:8000/welcome-dummy-url';
 
       await new Email(newUser, welcomeURL).sendWelcome();
@@ -314,7 +314,7 @@ exports.resetPassword = (Model) =>
     try {
       const loginUrl =
         process.env.NODE_ENV === 'production'
-          ? `${process.env.FRONTEND_URL}/login`
+          ? `http://localhost:3000/authentication/login`
           : 'http://localhost:8000/login';
 
       await new Email(user, loginUrl).sendPasswordResetSuccess();
