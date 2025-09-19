@@ -19,12 +19,23 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-app.use(
-  cors({
-    origin: ['http://localhost:3000'],
-    credentials: true,
-  })
-);
+const ALLOWED_ORIGIN = 'http://localhost:3000';
+
+app.use((req, res, next) => {
+  res.header('Vary', 'Origin');
+  next();
+});
+
+const corsOptions = {
+  origin: ALLOWED_ORIGIN,
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+
+app.options('*', cors(corsOptions));
 
 app.use(cookieParser());
 
@@ -35,6 +46,13 @@ app.use(
     limit: '50kb',
   })
 );
+
+app.get('/', (req, res, next) => {
+  res.status(200).json({
+    status: 'Success',
+    message: 'Not allowed to use this',
+  });
+});
 
 app.use('/api/drive/trips', tripRouter);
 app.use('/api/drive/driver', driverRouter);
