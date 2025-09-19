@@ -256,15 +256,14 @@ exports.forgetPassword = (Model) =>
 
     // 4) Send it to user's email
     try {
+      // ✅ Create the dynamic URL
       const resetURL =
         process.env.NODE_ENV === 'production'
           ? `https://uber-drive-frontend.vercel.app/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
           : `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`;
 
-      await new Email(
-        user,
-        `https://uber-drive-frontend.vercel.app/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
-      ).sendPasswordReset();
+      // ✅ FIXED: Use the dynamic resetURL variable (not hardcoded)
+      await new Email(user, resetURL).sendPasswordReset();
     } catch (err) {
       // 🔧 ADD DETAILED ERROR LOGGING
       console.error('❌ Detailed email error:', {
