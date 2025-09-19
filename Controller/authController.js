@@ -22,11 +22,17 @@ const createSendToken = (user, statusCode, res, userType) => {
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
     httpOnly: true, // Always true for security
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-origin
-    secure: process.env.NODE_ENV === 'production', // true for HTTPS
+    path: '/', // ✅ IMPORTANT: Set path explicitly
   };
 
-  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+  // ✅ CRITICAL: Add domain for cross-origin cookies in production
+  if (process.env.NODE_ENV === 'production') {
+    // Don't set domain - let it default to the request domain
+    // This allows the cookie to work across your frontend domain
+    cookieOptions.domain = undefined;
+  }
 
   res.cookie('jwt', token, cookieOptions);
 
