@@ -7,7 +7,6 @@ const Email = require('./../util/email');
 const { promisify } = require('util');
 const Driver = require('./../Model/driverModel');
 const Rider = require('./../Model/riderModel');
-const { generateAndSendOTP } = require('../util/smsVerification');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -127,8 +126,6 @@ exports.signup = (Model) =>
 exports.login = (Model) =>
   catchAsync(async (req, res, next) => {
     const { email, password } = req.body;
-
-    console.log('Inside Login Function');
 
     // 1) Check if email and password exist
     if (!email || !password) {

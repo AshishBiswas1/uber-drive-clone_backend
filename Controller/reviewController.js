@@ -492,10 +492,6 @@ async function updateDriverRating(driverId) {
       rating: ratingStats.averageRating || 0,
       totalReviews: ratingStats.totalReviews || 0,
     });
-
-    console.log(
-      `✅ Updated driver ${driverId} rating to ${ratingStats.averageRating}`
-    );
   } catch (error) {
     console.error(`❌ Failed to update driver rating:`, error);
   }

@@ -1,4 +1,4 @@
-// Model/riderModel.js - FIXED DUPLICATE INDEX WARNING
+// Model/riderModel.js - ENHANCED WITH MANUAL STATS TRACKING
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -15,7 +15,7 @@ const riderSchema = new mongoose.Schema(
     email: {
       type: String,
       required: [true, 'Email is required'],
-      unique: true, // ✅ This already creates an index
+      unique: true,
       lowercase: true,
       validate: {
         validator: function (email) {
@@ -28,7 +28,7 @@ const riderSchema = new mongoose.Schema(
     phoneNo: {
       type: String,
       required: [true, 'Phone number is required'],
-      index: true, // ✅ Create index directly in field definition
+      index: true,
       validate: {
         validator: function (phone) {
           return /^[0-9]{10}$/.test(phone);
@@ -57,7 +57,7 @@ const riderSchema = new mongoose.Schema(
 
     photo: {
       type: String,
-      default: 'default-avatar.png',
+      default: 'default-rider.jpg',
     },
 
     role: {
@@ -72,12 +72,12 @@ const riderSchema = new mongoose.Schema(
       select: false,
     },
 
-    // ✅ NEW: Payment and trip tracking fields
+    // ✅ UPDATED: Manual trip and payment tracking (updated in controller, not model)
     totalTrips: {
       type: Number,
       default: 0,
       min: 0,
-      index: true, // ✅ Index for leaderboards/stats queries
+      index: true,
     },
 
     totalAmountSpent: {
@@ -95,8 +95,8 @@ const riderSchema = new mongoose.Schema(
     stripeCustomerId: {
       type: String,
       default: null,
-      index: true, // ✅ Index for Stripe lookups
-      sparse: true, // ✅ Only index documents that have this field
+      index: true,
+      sparse: true,
     },
 
     // Location preferences
@@ -135,12 +135,6 @@ const riderSchema = new mongoose.Schema(
       min: 1,
       max: 5,
     },
-
-    totalRatings: {
-      type: Number,
-      default: 0,
-    },
-
     // Password reset functionality
     passwordChangedAt: Date,
     passwordResetToken: String,
@@ -167,7 +161,7 @@ const riderSchema = new mongoose.Schema(
   }
 );
 
-// ✅ COMPOUND INDEXES - Only create additional indexes that aren't already created by field definitions
+// ✅ COMPOUND INDEXES
 riderSchema.index({ totalTrips: -1, totalAmountSpent: -1 }); // For leaderboards
 riderSchema.index({ createdAt: -1 }); // For recent users
 riderSchema.index({ active: 1, emailVerified: 1 }); // For active verified users
@@ -279,33 +273,10 @@ riderSchema.methods.createPasswordResetToken = function () {
   return resetToken;
 };
 
-// ✅ ENHANCED: Instance method to update trip statistics
-riderSchema.methods.updateTripStats = async function (paymentAmount) {
-  try {
-    // Increment trip count
-    this.totalTrips = (this.totalTrips || 0) + 1;
+// ✅ REMOVED: updateTripStats method (now handled in controller)
+// Stats are updated manually in the payment controller for better control
 
-    // Add to total amount spent
-    this.totalAmountSpent = (this.totalAmountSpent || 0) + paymentAmount;
-
-    // Update last payment date
-    this.lastPaymentDate = new Date();
-
-    console.log('📊 Updating rider stats:', {
-      riderId: this._id,
-      totalTrips: this.totalTrips,
-      totalAmountSpent: this.totalAmountSpent,
-      paymentAmount,
-    });
-
-    return await this.save();
-  } catch (error) {
-    console.error('❌ Error updating trip stats:', error);
-    throw error;
-  }
-};
-
-// ✅ NEW: Get rider statistics
+// ✅ INSTANCE METHOD: Get rider statistics
 riderSchema.methods.getStats = function () {
   return {
     totalTrips: this.totalTrips || 0,
@@ -319,7 +290,7 @@ riderSchema.methods.getStats = function () {
   };
 };
 
-// ✅ NEW: Check if eligible for promotions
+// ✅ INSTANCE METHOD: Check if eligible for promotions
 riderSchema.methods.isEligibleForPromo = function (promoType) {
   switch (promoType) {
     case 'newbie':
@@ -375,13 +346,11 @@ riderSchema.statics.getStatistics = async function () {
   );
 };
 
-// ✅ MODEL CREATION WITH PROPER ERROR HANDLING
+// ✅ MODEL CREATION
 let Rider;
 try {
-  // Check if model already exists
   Rider = mongoose.model('Rider');
 } catch (error) {
-  // Model doesn't exist, create it
   Rider = mongoose.model('Rider', riderSchema);
 }
 

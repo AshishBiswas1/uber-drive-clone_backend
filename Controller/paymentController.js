@@ -1,4 +1,4 @@
-// controllers/paymentController.js - COMPLETE WITH ENHANCED SUCCESS FLOW - FIXED
+// controllers/paymentController.js - COMPLETE WITH ALL RIDER STATISTICS FIELDS (NO CONSOLE LOGS)
 const Stripe = require('stripe');
 const Payment = require('../Model/paymentModel');
 const Trip = require('../Model/tripsModel');
@@ -16,19 +16,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 // ===========================================
 
 function buildSuccessUrl(host, paymentId) {
-  // ✅ NEW: Build frontend success URL that will handle the redirect flow
   const frontendUrl = process.env.FRONTEND_URL || host.replace('/api', '');
-  console.log(
-    `Frontend success URL: ${frontendUrl}/payment-success?payment_id=${paymentId}`
-  );
   return `${frontendUrl}/payment-success?payment_id=${paymentId}`;
 }
 
 function buildCancelUrl(host, paymentId) {
   const frontendUrl = process.env.FRONTEND_URL || host.replace('/api', '');
-  console.log(
-    `Frontend cancel URL: ${frontendUrl}/payment-cancel?payment_id=${paymentId}`
-  );
   return `${frontendUrl}/payment-cancel?payment_id=${paymentId}`;
 }
 
@@ -40,11 +33,49 @@ function calculateDriverEarnings(amount) {
   return Math.round(amount * 0.8);
 }
 
+// Helper function to update ALL rider statistics fields
+const updateRiderStats = async (riderId, amount) => {
+  try {
+    const rider = await Rider.findById(riderId);
+    if (!rider) {
+      return null;
+    }
+
+    // Calculate new statistics for ALL fields
+    const newTotalTrips = (rider.totalTrips || 0) + 1;
+    const newTotalAmountSpent = (rider.totalAmountSpent || 0) + amount;
+    const newTotalRides = (rider.totalRides || 0) + 1;
+    const newTotalSpent = (rider.totalSpent || 0) + amount;
+
+    // Update ALL rider statistics fields
+    const updatedRider = await Rider.findByIdAndUpdate(
+      riderId,
+      {
+        // Original fields
+        totalTrips: newTotalTrips,
+        totalAmountSpent: newTotalAmountSpent,
+        // Additional fields
+        totalRides: newTotalRides,
+        totalSpent: newTotalSpent,
+        lastPaymentDate: new Date(),
+      },
+      {
+        new: true,
+        runValidators: false,
+      }
+    );
+
+    return updatedRider;
+  } catch (error) {
+    return null;
+  }
+};
+
 // ===========================================
 // PAYMENT SESSION ROUTES
 // ===========================================
 
-// Create Stripe Checkout Session for Trip Payment
+// Create Stripe Checkout Session WITHOUT updating stats
 exports.createCheckoutSession = catchAsync(async (req, res, next) => {
   const host = `${req.protocol}://${req.get('host')}`;
   const { tripId, tipAmount = 0, promoCode, paymentMethodId } = req.body;
@@ -59,7 +90,6 @@ exports.createCheckoutSession = catchAsync(async (req, res, next) => {
     return next(new AppError('Trip not found', 404));
   }
 
-  console.log(trip.riderId);
   // Verify rider owns this trip
   if (trip.riderId._id.toString() !== req.user.id) {
     return next(new AppError('You can only pay for your own trips', 403));
@@ -112,11 +142,10 @@ exports.createCheckoutSession = catchAsync(async (req, res, next) => {
       tripDuration: trip.duration,
       pickupLocation: trip.pickupLocation.address,
       dropoffLocation: trip.dropoffLocation.address,
+      riderName: req.user.name,
+      finalAmount,
     },
   });
-
-  // ✅ REMOVED: Don't update rider stats here - only update after successful payment
-  // This prevents double counting when both creation and success handlers run
 
   const success_url = buildSuccessUrl(host, paymentDoc._id.toString());
   const cancel_url = buildCancelUrl(host, paymentDoc._id.toString());
@@ -267,10 +296,10 @@ exports.confirmPayment = catchAsync(async (req, res, next) => {
 });
 
 // ===========================================
-// ✅ ENHANCED SUCCESS & CANCEL HANDLERS
+// SUCCESS & CANCEL HANDLERS
 // ===========================================
 
-// ✅ FIXED: Enhanced Payment Success Handler with Proper Rider Stats Update
+// Payment Success Handler - Updates ALL stats when payment confirmed
 exports.paymentSuccess = catchAsync(async (req, res, next) => {
   const { payment_id } = req.query;
 
@@ -278,33 +307,25 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
     return next(new AppError('Payment ID is required', 400));
   }
 
-  console.log('🎉 Processing payment success for payment ID:', payment_id);
-
   try {
-    // Get payment details with better error handling
+    // Get payment details
     const payment = await Payment.findById(payment_id)
       .populate(
         'tripId',
         'pickupLocation dropoffLocation fare distance duration'
       )
-      .populate('riderId', 'name email phoneNo totalTrips totalAmountSpent')
+      .populate(
+        'riderId',
+        'name email phoneNo totalTrips totalAmountSpent totalRides totalSpent'
+      )
       .populate('driverId', 'name email phoneNo');
 
     if (!payment) {
-      console.error('❌ Payment not found for ID:', payment_id);
       return next(new AppError('Payment not found', 404));
     }
 
-    console.log('💳 Found payment:', {
-      id: payment._id,
-      status: payment.status,
-      amount: payment.amount,
-    });
-
-    // Update payment status to paid if not already updated by webhook
+    // Update payment status to paid if not already updated
     if (payment.status !== 'paid') {
-      console.log('💳 Updating payment status to paid');
-
       payment.status = 'paid';
       payment.completedAt = new Date();
       await payment.save();
@@ -312,54 +333,31 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
       // Update trip payment status
       await Trip.findByIdAndUpdate(payment.tripId, { paymentStatus: 'paid' });
 
-      // ✅ FIXED: Update rider statistics only once when payment is confirmed
-      console.log('📊 Updating rider statistics...');
+      // Update ALL rider statistics ONLY when payment is confirmed as paid
+      const updatedRider = await updateRiderStats(
+        payment.riderId._id,
+        payment.amount
+      );
 
-      const rider = await Rider.findById(payment.riderId._id);
-      if (rider) {
-        // ✅ FIXED: Check if this payment has already been counted to avoid double counting
-        const hasBeenCounted = await Payment.countDocuments({
-          riderId: payment.riderId._id,
-          status: 'paid',
-          createdAt: { $lt: payment.createdAt }, // Count payments created before this one
-        });
-
-        // Only update if this is a genuinely new completed trip
-        const expectedTripCount = hasBeenCounted + 1;
-
-        if (rider.totalTrips < expectedTripCount) {
-          // Increment trip count
-          rider.totalTrips = expectedTripCount;
-
-          // Recalculate total amount spent from all paid payments
-          const totalSpentResult = await Payment.aggregate([
-            { $match: { riderId: payment.riderId._id, status: 'paid' } },
-            { $group: { _id: null, total: { $sum: '$amount' } } },
-          ]);
-
-          rider.totalAmountSpent = totalSpentResult[0]?.total || 0;
-
-          // Update last payment date
-          rider.lastPaymentDate = new Date();
-
-          await rider.save({ runValidators: false });
-
-          console.log('✅ Rider statistics updated:', {
-            riderId: rider._id,
-            totalTrips: rider.totalTrips,
-            totalAmountSpent: rider.totalAmountSpent,
-          });
-
-          // Update the populated rider data for response
-          payment.riderId.totalTrips = rider.totalTrips;
-          payment.riderId.totalAmountSpent = rider.totalAmountSpent;
-        } else {
-          console.log('ℹ️ Rider stats already up to date, skipping update');
-        }
+      if (updatedRider) {
+        // Update the populated rider data for response with ALL fields
+        payment.riderId.totalTrips = updatedRider.totalTrips;
+        payment.riderId.totalAmountSpent = updatedRider.totalAmountSpent;
+        payment.riderId.totalRides = updatedRider.totalRides;
+        payment.riderId.totalSpent = updatedRider.totalSpent;
+      }
+    } else {
+      // Payment already paid, get current rider stats
+      const currentRider = await Rider.findById(payment.riderId._id);
+      if (currentRider) {
+        payment.riderId.totalTrips = currentRider.totalTrips;
+        payment.riderId.totalAmountSpent = currentRider.totalAmountSpent;
+        payment.riderId.totalRides = currentRider.totalRides;
+        payment.riderId.totalSpent = currentRider.totalSpent;
       }
     }
 
-    // Return comprehensive success response
+    // Return comprehensive success response with ALL updated rider stats
     res.status(200).json({
       status: 'success',
       message: 'Payment completed successfully!',
@@ -381,10 +379,13 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
             name: payment.driverId.name,
             phoneNo: payment.driverId.phoneNo,
           },
+          // Return ALL updated rider stats
           rider: {
             name: payment.riderId.name,
             totalTrips: payment.riderId.totalTrips,
             totalAmountSpent: payment.riderId.totalAmountSpent,
+            totalRides: payment.riderId.totalRides,
+            totalSpent: payment.riderId.totalSpent,
           },
           breakdown: {
             baseFare: payment.baseFare,
@@ -396,12 +397,11 @@ exports.paymentSuccess = catchAsync(async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('❌ Error in payment success handler:', error);
     return next(new AppError('Failed to process payment success', 500));
   }
 });
 
-// Payment Cancel Handler
+// Payment Cancel Handler - No stats rollback needed
 exports.paymentCancel = catchAsync(async (req, res, next) => {
   const { payment_id } = req.query;
 
@@ -418,7 +418,7 @@ exports.paymentCancel = catchAsync(async (req, res, next) => {
     return next(new AppError('Payment not found', 404));
   }
 
-  // Update payment status to cancelled
+  // Update payment status to cancelled (no stats rollback needed)
   if (['created', 'pending'].includes(payment.status)) {
     payment.status = 'cancelled';
     await payment.save();
@@ -705,7 +705,7 @@ exports.processTip = catchAsync(async (req, res, next) => {
 });
 
 // ===========================================
-// ✅ FIXED WEBHOOK HANDLER
+// WEBHOOK HANDLER
 // ===========================================
 
 exports.webhook = async (req, res) => {
@@ -717,7 +717,6 @@ exports.webhook = async (req, res) => {
     if (!endpointSecret) throw new Error('Missing STRIPE_WEBHOOK_SECRET');
     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
@@ -727,11 +726,6 @@ exports.webhook = async (req, res) => {
         const session = event.data.object;
         const paymentId = session.metadata?.paymentId;
         if (paymentId) {
-          console.log(
-            '🎉 Stripe checkout completed via webhook for payment:',
-            paymentId
-          );
-
           const payment = await Payment.findByIdAndUpdate(
             paymentId,
             {
@@ -749,41 +743,8 @@ exports.webhook = async (req, res) => {
               paymentStatus: 'paid',
             });
 
-            // ✅ FIXED: Use the same logic as paymentSuccess to avoid double counting
-            const rider = await Rider.findById(payment.riderId);
-            if (rider) {
-              // Check if this payment has already been counted
-              const hasBeenCounted = await Payment.countDocuments({
-                riderId: payment.riderId,
-                status: 'paid',
-                createdAt: { $lt: payment.createdAt },
-              });
-
-              const expectedTripCount = hasBeenCounted + 1;
-
-              if (rider.totalTrips < expectedTripCount) {
-                rider.totalTrips = expectedTripCount;
-
-                // Recalculate total amount from all paid payments
-                const totalSpentResult = await Payment.aggregate([
-                  { $match: { riderId: payment.riderId, status: 'paid' } },
-                  { $group: { _id: null, total: { $sum: '$amount' } } },
-                ]);
-
-                rider.totalAmountSpent = totalSpentResult[0]?.total || 0;
-                rider.lastPaymentDate = new Date();
-
-                await rider.save({ runValidators: false });
-
-                console.log('✅ Rider stats updated via webhook:', {
-                  riderId: rider._id,
-                  totalTrips: rider.totalTrips,
-                  totalAmountSpent: rider.totalAmountSpent,
-                });
-              } else {
-                console.log('ℹ️ Webhook: Rider stats already up to date');
-              }
-            }
+            // Update ALL rider stats via webhook when payment is confirmed
+            await updateRiderStats(payment.riderId, payment.amount);
           }
         }
         break;
@@ -791,13 +752,19 @@ exports.webhook = async (req, res) => {
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object;
-        await Payment.findOneAndUpdate(
+        const payment = await Payment.findOneAndUpdate(
           { stripePaymentIntentId: paymentIntent.id },
           {
             status: 'paid',
             completedAt: new Date(),
-          }
+          },
+          { new: true }
         );
+
+        // Update ALL rider stats for payment intent success too
+        if (payment) {
+          await updateRiderStats(payment.riderId, payment.amount);
+        }
         break;
       }
 
@@ -827,12 +794,11 @@ exports.webhook = async (req, res) => {
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        break;
     }
 
     res.json({ received: true });
   } catch (err) {
-    console.error('Webhook handling error:', err);
     res.status(500).send('Webhook handler failed');
   }
 };

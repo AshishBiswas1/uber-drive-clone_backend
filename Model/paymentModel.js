@@ -286,16 +286,6 @@ PaymentSchema.pre('validate', function (next) {
   next();
 });
 
-// **POST-SAVE MIDDLEWARE** for logging
-PaymentSchema.post('save', function (doc, next) {
-  if (this.isModified('status')) {
-    console.log(
-      `Payment ${doc._id} for trip ${doc.tripId} status changed to: ${doc.status}`
-    );
-  }
-  next();
-});
-
 // **INSTANCE METHODS**
 PaymentSchema.methods.isExpired = function () {
   return this.expiresAt && new Date() > this.expiresAt;
