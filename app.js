@@ -117,6 +117,7 @@ const corsOptions = {
     'X-RateLimit-Limit', // Rate limit info
     'X-RateLimit-Remaining', // Remaining requests
     'X-RateLimit-Reset', // Reset time
+    'Accept',
 
     // ✅ File upload headers
     'X-File-Name', // Original filename
