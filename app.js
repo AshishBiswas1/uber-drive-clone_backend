@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const AppError = require('./util/appError');
 const cors = require('cors');
 const globalErrorHandler = require('./Controller/errorController');
+const helmet = require('helmet');
 
 // All Routers
 const tripRouter = require('./Router/tripRouter');
@@ -19,10 +20,13 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+app.use(helmet());
+
 const corsOptions = {
   // ✅ ORIGINS - All possible frontend URLs
   origin: [
-    'https://uber-drive-frontend.vercel.app', // Netlify deployment
+    'https://uber-drive-frontend.vercel.app',
+    'http://localhost:3000', // Netlify deployment
   ],
 
   // ✅ CREDENTIALS - Important for JWT cookies
