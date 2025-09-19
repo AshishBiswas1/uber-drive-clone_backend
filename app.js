@@ -19,24 +19,17 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-app.use(helmet());
-
+// ✅ CRITICAL: CORS MUST BE BEFORE HELMET
 const corsOptions = {
-  // ✅ ORIGINS - All possible frontend URLs
   origin: [
     'https://uber-drive-frontend.vercel.app',
-    'http://localhost:3000', // Netlify deployment
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    // Add any other domains you need
   ],
-
-  // ✅ CREDENTIALS - Important for JWT cookies
   credentials: true,
-
-  // ✅ METHODS - All HTTP methods your app might use
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-
-  // ✅ ALLOWED HEADERS - Comprehensive list for all possible frontend requests
   allowedHeaders: [
-    // ✅ Standard headers
     'Origin',
     'X-Requested-With',
     'Content-Type',
@@ -48,132 +41,105 @@ const corsOptions = {
     'Host',
     'Referer',
     'User-Agent',
-    'Access-Control-Allow-Origin',
-
-    // ✅ Authentication headers
-    'Authorization', // JWT Bearer tokens
-    'x-auth-token', // Custom auth token
-    'X-Auth-Token', // Case variation
-    'x-access-token', // Alternative auth header
-    'X-Access-Token', // Case variation
-    'Authentication', // Alternative spelling
-
-    // ✅ Custom application headers
-    'X-API-Key', // API keys
-    'X-Client-ID', // Client identification
-    'X-Request-ID', // Request tracking
-    'X-Correlation-ID', // Request correlation
-    'X-Session-ID', // Session tracking
-    'X-User-ID', // User identification
-    'X-Device-ID', // Device identification
+    'Authorization',
+    'x-auth-token',
+    'X-Auth-Token',
+    'x-access-token',
+    'X-Access-Token',
+    'Authentication',
+    'X-API-Key',
+    'X-Client-ID',
+    'X-Request-ID',
+    'X-Correlation-ID',
+    'X-Session-ID',
+    'X-User-ID',
+    'X-Device-ID',
     'x-user-role',
     'pragma',
-    'X-App-Version', // App version tracking
-    'X-Platform', // Platform identification
-
-    // ✅ Content and upload headers
-    'Content-Length', // File uploads
-    'Content-Encoding', // Compression
-    'Content-Range', // Range requests
-    'Range', // Partial content
-    'If-Match', // Conditional requests
-    'If-None-Match', // ETags
-    'If-Modified-Since', // Caching
-    'If-Unmodified-Since', // Conditional updates
-
-    // ✅ CSRF and security headers
-    'X-CSRF-Token', // CSRF protection
-    'X-Requested-Token', // Custom CSRF
-    'X-XSRF-TOKEN', // Angular CSRF
-
-    // ✅ Browser and framework headers
-    'DNT', // Do Not Track
+    'X-App-Version',
+    'X-Platform',
+    'Content-Length',
+    'Content-Encoding',
+    'Content-Range',
+    'Range',
+    'If-Match',
+    'If-None-Match',
+    'If-Modified-Since',
+    'If-Unmodified-Since',
+    'X-CSRF-Token',
+    'X-Requested-Token',
+    'X-XSRF-TOKEN',
+    'DNT',
     'Upgrade-Insecure-Requests',
-    'X-Forwarded-For', // Proxy headers
-    'X-Forwarded-Proto', // Protocol forwarding
-    'X-Real-IP', // Real IP from proxy
-
-    // ✅ WebSocket headers
-    'Upgrade', // WebSocket upgrade
-    'Sec-WebSocket-Key', // WebSocket handshake
-    'Sec-WebSocket-Protocol', // WebSocket protocol
-    'Sec-WebSocket-Version', // WebSocket version
-
-    // ✅ Modern browser headers
-    'Sec-Fetch-Site', // Fetch metadata
-    'Sec-Fetch-Mode', // Request mode
-    'Sec-Fetch-Dest', // Request destination
-    'Sec-CH-UA', // Client hints
-    'Sec-CH-UA-Mobile', // Mobile detection
-    'Sec-CH-UA-Platform', // Platform detection
-
-    // ✅ GraphQL headers
-    'X-Apollo-Tracing', // Apollo GraphQL
-    'X-GraphQL-Query', // GraphQL queries
-
-    // ✅ Monitoring and analytics
-    'X-Trace-ID', // Distributed tracing
-    'X-Span-ID', // OpenTracing
-    'X-B3-TraceId', // Zipkin tracing
-    'X-B3-SpanId', // Zipkin spans
-
-    // ✅ Rate limiting headers
-    'X-RateLimit-Limit', // Rate limit info
-    'X-RateLimit-Remaining', // Remaining requests
-    'X-RateLimit-Reset', // Reset time
-    'Accept',
-
-    // ✅ File upload headers
-    'X-File-Name', // Original filename
-    'X-File-Size', // File size
-    'X-File-Type', // MIME type
-    'X-Upload-Progress', // Upload progress
-
-    // ✅ Geolocation headers
-    'X-Latitude', // GPS latitude
-    'X-Longitude', // GPS longitude
-    'X-Location', // Combined location
-
-    // ✅ Ride-booking specific headers
-    'X-Rider-ID', // Rider identification
-    'X-Driver-ID', // Driver identification
-    'X-Trip-ID', // Trip identification
-    'X-Vehicle-ID', // Vehicle identification
-    'X-Location-Accuracy', // GPS accuracy
-    'X-Timestamp', // Request timestamp
-
-    // ✅ Fallback for any custom headers
-    'X-Custom-Header', // Generic custom header
+    'X-Forwarded-For',
+    'X-Forwarded-Proto',
+    'X-Real-IP',
+    'Upgrade',
+    'Sec-WebSocket-Key',
+    'Sec-WebSocket-Protocol',
+    'Sec-WebSocket-Version',
+    'Sec-Fetch-Site',
+    'Sec-Fetch-Mode',
+    'Sec-Fetch-Dest',
+    'Sec-CH-UA',
+    'Sec-CH-UA-Mobile',
+    'Sec-CH-UA-Platform',
+    'X-Apollo-Tracing',
+    'X-GraphQL-Query',
+    'X-Trace-ID',
+    'X-Span-ID',
+    'X-B3-TraceId',
+    'X-B3-SpanId',
+    'X-RateLimit-Limit',
+    'X-RateLimit-Remaining',
+    'X-RateLimit-Reset',
+    'X-File-Name',
+    'X-File-Size',
+    'X-File-Type',
+    'X-Upload-Progress',
+    'X-Latitude',
+    'X-Longitude',
+    'X-Location',
+    'X-Rider-ID',
+    'X-Driver-ID',
+    'X-Trip-ID',
+    'X-Vehicle-ID',
+    'X-Location-Accuracy',
+    'X-Timestamp',
+    'X-Custom-Header',
   ],
-
-  // ✅ EXPOSED HEADERS - Headers the client can access
   exposedHeaders: [
-    'X-Total-Count', // Pagination
-    'X-Page-Count', // Page info
-    'X-Per-Page', // Items per page
-    'X-Current-Page', // Current page
-    'X-Rate-Limit-Limit', // Rate limiting
+    'X-Total-Count',
+    'X-Page-Count',
+    'X-Per-Page',
+    'X-Current-Page',
+    'X-Rate-Limit-Limit',
     'X-Rate-Limit-Remaining',
     'X-Rate-Limit-Reset',
-    'X-Request-ID', // Request tracking
-    'X-Response-Time', // Performance metrics
-    'ETag', // Caching
-    'Last-Modified', // Caching
-    'Location', // Redirects
-    'Content-Range', // Range requests
-    'Accept-Ranges', // Range support
+    'X-Request-ID',
+    'X-Response-Time',
+    'ETag',
+    'Last-Modified',
+    'Location',
+    'Content-Range',
+    'Accept-Ranges',
   ],
-
-  // ✅ OPTIONS handling
-  optionsSuccessStatus: 200, // For legacy browser support
-
-  // ✅ Preflight cache duration (24 hours)
+  optionsSuccessStatus: 200,
   maxAge: 86400,
 };
 
+// ✅ Apply CORS FIRST
 app.use(cors(corsOptions));
-
 app.options('*', cors(corsOptions));
+
+// ✅ Then apply helmet with CORS-friendly settings
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false, // Disable CSP that might block CORS
+  })
+);
 
 app.use(cookieParser());
 
@@ -183,10 +149,18 @@ app.use(
   })
 );
 
+// ✅ Test endpoint with CORS headers
 app.get('/', (req, res, next) => {
+  // Manually set CORS headers as backup
+  res.header('Access-Control-Allow-Origin', req.get('Origin') || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+
   res.status(200).json({
     status: 'Success',
-    message: 'Not allowed to use this',
+    message: 'Backend is working - CORS enabled',
+    timestamp: new Date().toISOString(),
+    origin: req.get('Origin'),
+    userAgent: req.get('User-Agent'),
   });
 });
 
