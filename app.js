@@ -19,7 +19,7 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-const ALLOWED_ORIGIN = 'https://uber-drive-frontend.vercel.app';
+const ALLOWED_ORIGIN = 'http://localhost:3000';
 
 app.use((req, res, next) => {
   res.header('Vary', 'Origin');
