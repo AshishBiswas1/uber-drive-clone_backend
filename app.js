@@ -45,6 +45,7 @@ const corsOptions = {
     'Host',
     'Referer',
     'User-Agent',
+    'Access-Control-Allow-Origin',
 
     // ✅ Authentication headers
     'Authorization', // JWT Bearer tokens
