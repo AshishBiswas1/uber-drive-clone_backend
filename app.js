@@ -28,11 +28,12 @@ const corsOptions = {
   credentials: true, // ✅ CRITICAL: Enable credentials
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Accept',
     'Origin',
     'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'x-auth-token', // ✅ Add this to allowed headers
   ],
   exposedHeaders: ['Set-Cookie'], // ✅ Expose cookie headers
   optionsSuccessStatus: 200, // Support legacy browsers
