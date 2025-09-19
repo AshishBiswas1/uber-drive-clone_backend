@@ -120,7 +120,7 @@ exports.signup = (Model) =>
     try {
       const welcomeURL =
         process.env.NODE_ENV === 'production'
-          ? 'http://localhost:3000'
+          ? 'https://uber-drive-frontend.vercel.app'
           : 'http://localhost:8000/welcome-dummy-url';
 
       await new Email(newUser, welcomeURL).sendWelcome();
@@ -258,7 +258,7 @@ exports.forgetPassword = (Model) =>
     try {
       const resetURL =
         process.env.NODE_ENV === 'production'
-          ? `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
+          ? `https://uber-drive-frontend.vercel.app/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
           : `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`;
 
       await new Email(user, resetURL).sendPasswordReset();
@@ -322,7 +322,7 @@ exports.resetPassword = (Model) =>
     try {
       const loginUrl =
         process.env.NODE_ENV === 'production'
-          ? `http://localhost:3000/authentication/login`
+          ? `https://uber-drive-frontend.vercel.app/authentication/login`
           : 'http://localhost:8000/login';
 
       await new Email(user, loginUrl).sendPasswordResetSuccess();

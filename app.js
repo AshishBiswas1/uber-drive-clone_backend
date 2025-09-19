@@ -22,7 +22,7 @@ if (process.env.NODE_ENV === 'development') {
 const corsOptions = {
   // ✅ ORIGINS - All possible frontend URLs
   origin: [
-    'http://localhost:3000', // Netlify deployment
+    'https://uber-drive-frontend.vercel.app', // Netlify deployment
   ],
 
   // ✅ CREDENTIALS - Important for JWT cookies
