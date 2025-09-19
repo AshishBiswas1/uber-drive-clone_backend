@@ -62,6 +62,7 @@ const corsOptions = {
     'X-Session-ID', // Session tracking
     'X-User-ID', // User identification
     'X-Device-ID', // Device identification
+    'x-user-role',
     'X-App-Version', // App version tracking
     'X-Platform', // Platform identification
 
