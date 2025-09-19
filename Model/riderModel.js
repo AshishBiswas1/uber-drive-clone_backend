@@ -27,13 +27,14 @@ const riderSchema = new mongoose.Schema(
 
     phoneNo: {
       type: String,
-      required: [true, 'Phone number is required'],
-      index: true,
+      required: true,
       validate: {
-        validator: function (phone) {
-          return /^[0-9]{10}$/.test(phone);
+        validator: function (v) {
+          // Accept multiple Indian phone formats
+          return /^(\+91|91)?[6-9]\d{9}$/.test(v);
         },
-        message: 'Please enter a valid 10-digit phone number',
+        message:
+          'Please enter a valid Indian phone number (e.g., +918755805252 or 8755805252)',
       },
     },
 
@@ -48,6 +49,12 @@ const riderSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please confirm your password'],
       validate: {
+        /*************  ✨ Windsurf Command ⭐  *************/
+        /**
+         * Validator function to check if the confirmed password matches the original password.
+         * @return {boolean} True if the passwords match, false otherwise.
+         */
+        /*******  b324d580-af76-41a0-8654-7ea850bc9e4f  *******/
         validator: function (el) {
           return el === this.password;
         },

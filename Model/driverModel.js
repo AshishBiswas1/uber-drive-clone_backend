@@ -19,13 +19,14 @@ const driverSchema = new mongoose.Schema({
   },
   phoneNo: {
     type: String,
-    required: [true, 'Please provide your phone number'],
-    unique: true,
+    required: true,
     validate: {
       validator: function (v) {
-        return /^\+?[1-9]\d{1,14}$/.test(v);
+        // Accept multiple Indian phone formats
+        return /^(\+91|91)?[6-9]\d{9}$/.test(v);
       },
-      message: 'Please provide a valid phone number',
+      message:
+        'Please enter a valid Indian phone number (e.g., +918755805252 or 8755805252)',
     },
   },
 
