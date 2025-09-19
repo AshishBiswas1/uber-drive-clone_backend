@@ -19,18 +19,23 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-const ALLOWED_ORIGIN = 'http://localhost:3000';
-
-app.use((req, res, next) => {
-  res.header('Vary', 'Origin');
-  next();
-});
-
 const corsOptions = {
-  origin: ALLOWED_ORIGIN,
-  credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: [
+    'http://localhost:3000',
+    'https://uber-drive-frontend-a5ys.vercel.app',
+    // Add your exact Vercel domain here
+  ],
+  credentials: true, // ✅ CRITICAL: Enable credentials
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept',
+    'Origin',
+    'X-Requested-With',
+  ],
+  exposedHeaders: ['Set-Cookie'], // ✅ Expose cookie headers
+  optionsSuccessStatus: 200, // Support legacy browsers
 };
 
 app.use(cors(corsOptions));
