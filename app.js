@@ -1,5 +1,4 @@
 const express = require('express');
-const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const AppError = require('./util/appError');
@@ -177,8 +176,6 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 app.use(cookieParser());
-
-app.use(helmet());
 
 app.use(
   express.json({
