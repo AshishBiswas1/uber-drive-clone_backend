@@ -258,7 +258,7 @@ exports.forgetPassword = (Model) =>
     try {
       const resetURL =
         process.env.NODE_ENV === 'production'
-          ? `https://your-frontend-domain.com/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
+          ? `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`
           : `http://localhost:3000/authentication/reset-password?token=${resetToken}&type=${Model.modelName.toLowerCase()}`;
 
       await new Email(user, resetURL).sendPasswordReset();
