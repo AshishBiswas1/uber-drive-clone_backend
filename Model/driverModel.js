@@ -111,7 +111,7 @@ const driverSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['offline', 'online', 'busy', 'break'],
-    default: 'offline',
+    default: 'online',
   },
   // ✅ FIXED: Proper GeoJSON schema - completely optional
   currentLocation: {
